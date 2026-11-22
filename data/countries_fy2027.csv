@@ -1,0 +1,132 @@
+iso3,country,region,region_name,income
+AFG,Afghanistan,MEA,"Middle East, North Africa, Afghanistan & Pakistan",LIC
+AGO,Angola,SSF,Sub-Saharan Africa ,LMC
+ALB,Albania,ECS,Europe & Central Asia,UMC
+ARG,Argentina,LCN,Latin America & Caribbean ,UMC
+ARM,Armenia,ECS,Europe & Central Asia,UMC
+AZE,Azerbaijan,ECS,Europe & Central Asia,UMC
+BDI,Burundi,SSF,Sub-Saharan Africa ,LIC
+BEN,Benin,SSF,Sub-Saharan Africa ,LMC
+BFA,Burkina Faso,SSF,Sub-Saharan Africa ,LIC
+BGD,Bangladesh,SAS,South Asia,LMC
+BIH,Bosnia and Herzegovina,ECS,Europe & Central Asia,UMC
+BLR,Belarus,ECS,Europe & Central Asia,UMC
+BLZ,Belize,LCN,Latin America & Caribbean ,UMC
+BOL,Bolivia,LCN,Latin America & Caribbean ,LMC
+BRA,Brazil,LCN,Latin America & Caribbean ,UMC
+BTN,Bhutan,SAS,South Asia,LMC
+BWA,Botswana,SSF,Sub-Saharan Africa ,UMC
+CAF,Central African Republic,SSF,Sub-Saharan Africa ,LIC
+CHN,China,EAS,East Asia & Pacific,UMC
+CIV,Cote d'Ivoire,SSF,Sub-Saharan Africa ,LMC
+CMR,Cameroon,SSF,Sub-Saharan Africa ,LMC
+COD,"Congo, Dem. Rep.",SSF,Sub-Saharan Africa ,LIC
+COG,"Congo, Rep.",SSF,Sub-Saharan Africa ,LMC
+COL,Colombia,LCN,Latin America & Caribbean ,UMC
+COM,Comoros,SSF,Sub-Saharan Africa ,LMC
+CPV,Cabo Verde,SSF,Sub-Saharan Africa ,UMC
+CUB,Cuba,LCN,Latin America & Caribbean ,UMC
+DJI,Djibouti,MEA,"Middle East, North Africa, Afghanistan & Pakistan",LMC
+DMA,Dominica,LCN,Latin America & Caribbean ,UMC
+DOM,Dominican Republic,LCN,Latin America & Caribbean ,UMC
+DZA,Algeria,MEA,"Middle East, North Africa, Afghanistan & Pakistan",UMC
+ECU,Ecuador,LCN,Latin America & Caribbean ,UMC
+EGY,"Egypt, Arab Rep.",MEA,"Middle East, North Africa, Afghanistan & Pakistan",LMC
+ERI,Eritrea,SSF,Sub-Saharan Africa ,LIC
+ETH,Ethiopia,SSF,Sub-Saharan Africa ,LIC
+FJI,Fiji,EAS,East Asia & Pacific,UMC
+FSM,"Micronesia, Fed. Sts.",EAS,East Asia & Pacific,UMC
+GAB,Gabon,SSF,Sub-Saharan Africa ,UMC
+GEO,Georgia,ECS,Europe & Central Asia,UMC
+GHA,Ghana,SSF,Sub-Saharan Africa ,LMC
+GIN,Guinea,SSF,Sub-Saharan Africa ,LMC
+GMB,"Gambia, The",SSF,Sub-Saharan Africa ,LIC
+GNB,Guinea-Bissau,SSF,Sub-Saharan Africa ,LIC
+GNQ,Equatorial Guinea,SSF,Sub-Saharan Africa ,UMC
+GRD,Grenada,LCN,Latin America & Caribbean ,UMC
+GTM,Guatemala,LCN,Latin America & Caribbean ,UMC
+HND,Honduras,LCN,Latin America & Caribbean ,LMC
+HTI,Haiti,LCN,Latin America & Caribbean ,LMC
+IDN,Indonesia,EAS,East Asia & Pacific,UMC
+IND,India,SAS,South Asia,LMC
+IRN,"Iran, Islamic Rep.",MEA,"Middle East, North Africa, Afghanistan & Pakistan",UMC
+IRQ,Iraq,MEA,"Middle East, North Africa, Afghanistan & Pakistan",UMC
+JAM,Jamaica,LCN,Latin America & Caribbean ,UMC
+JOR,Jordan,MEA,"Middle East, North Africa, Afghanistan & Pakistan",UMC
+KAZ,Kazakhstan,ECS,Europe & Central Asia,UMC
+KEN,Kenya,SSF,Sub-Saharan Africa ,LMC
+KGZ,Kyrgyz Republic,ECS,Europe & Central Asia,LMC
+KHM,Cambodia,EAS,East Asia & Pacific,LMC
+KIR,Kiribati,EAS,East Asia & Pacific,LMC
+LAO,Lao PDR,EAS,East Asia & Pacific,LMC
+LBN,Lebanon,MEA,"Middle East, North Africa, Afghanistan & Pakistan",LMC
+LBR,Liberia,SSF,Sub-Saharan Africa ,LIC
+LBY,Libya,MEA,"Middle East, North Africa, Afghanistan & Pakistan",UMC
+LCA,St. Lucia,LCN,Latin America & Caribbean ,UMC
+LKA,Sri Lanka,SAS,South Asia,UMC
+LSO,Lesotho,SSF,Sub-Saharan Africa ,LMC
+MAR,Morocco,MEA,"Middle East, North Africa, Afghanistan & Pakistan",LMC
+MDA,Moldova,ECS,Europe & Central Asia,UMC
+MDG,Madagascar,SSF,Sub-Saharan Africa ,LIC
+MDV,Maldives,SAS,South Asia,UMC
+MEX,Mexico,LCN,Latin America & Caribbean ,UMC
+MHL,Marshall Islands,EAS,East Asia & Pacific,UMC
+MKD,North Macedonia,ECS,Europe & Central Asia,UMC
+MLI,Mali,SSF,Sub-Saharan Africa ,LIC
+MMR,Myanmar,EAS,East Asia & Pacific,LMC
+MNE,Montenegro,ECS,Europe & Central Asia,UMC
+MNG,Mongolia,EAS,East Asia & Pacific,UMC
+MOZ,Mozambique,SSF,Sub-Saharan Africa ,LIC
+MRT,Mauritania,SSF,Sub-Saharan Africa ,LMC
+MUS,Mauritius,SSF,Sub-Saharan Africa ,UMC
+MWI,Malawi,SSF,Sub-Saharan Africa ,LIC
+MYS,Malaysia,EAS,East Asia & Pacific,UMC
+NAM,Namibia,SSF,Sub-Saharan Africa ,LMC
+NER,Niger,SSF,Sub-Saharan Africa ,LIC
+NGA,Nigeria,SSF,Sub-Saharan Africa ,LMC
+NIC,Nicaragua,LCN,Latin America & Caribbean ,LMC
+NPL,Nepal,SAS,South Asia,LMC
+PAK,Pakistan,MEA,"Middle East, North Africa, Afghanistan & Pakistan",LMC
+PER,Peru,LCN,Latin America & Caribbean ,UMC
+PHL,Philippines,EAS,East Asia & Pacific,UMC
+PNG,Papua New Guinea,EAS,East Asia & Pacific,LMC
+PRK,"Korea, Dem. People's Rep.",EAS,East Asia & Pacific,LIC
+PRY,Paraguay,LCN,Latin America & Caribbean ,UMC
+PSE,West Bank and Gaza,MEA,"Middle East, North Africa, Afghanistan & Pakistan",LMC
+RWA,Rwanda,SSF,Sub-Saharan Africa ,LIC
+SDN,Sudan,SSF,Sub-Saharan Africa ,LIC
+SEN,Senegal,SSF,Sub-Saharan Africa ,LMC
+SLB,Solomon Islands,EAS,East Asia & Pacific,LMC
+SLE,Sierra Leone,SSF,Sub-Saharan Africa ,LIC
+SLV,El Salvador,LCN,Latin America & Caribbean ,UMC
+SOM,"Somalia, Fed. Rep.",SSF,Sub-Saharan Africa ,LIC
+SRB,Serbia,ECS,Europe & Central Asia,UMC
+SSD,South Sudan,SSF,Sub-Saharan Africa ,LIC
+STP,Sao Tome and Principe,SSF,Sub-Saharan Africa ,LMC
+SUR,Suriname,LCN,Latin America & Caribbean ,UMC
+SWZ,Eswatini,SSF,Sub-Saharan Africa ,LMC
+SYR,Syrian Arab Republic,MEA,"Middle East, North Africa, Afghanistan & Pakistan",LIC
+TCD,Chad,SSF,Sub-Saharan Africa ,LIC
+TGO,Togo,SSF,Sub-Saharan Africa ,LMC
+THA,Thailand,EAS,East Asia & Pacific,UMC
+TJK,Tajikistan,ECS,Europe & Central Asia,LMC
+TKM,Turkmenistan,ECS,Europe & Central Asia,UMC
+TLS,Timor-Leste,EAS,East Asia & Pacific,LMC
+TON,Tonga,EAS,East Asia & Pacific,UMC
+TUN,Tunisia,MEA,"Middle East, North Africa, Afghanistan & Pakistan",LMC
+TUR,Turkiye,ECS,Europe & Central Asia,UMC
+TUV,Tuvalu,EAS,East Asia & Pacific,UMC
+TZA,Tanzania,SSF,Sub-Saharan Africa ,LMC
+UGA,Uganda,SSF,Sub-Saharan Africa ,LIC
+UKR,Ukraine,ECS,Europe & Central Asia,UMC
+UZB,Uzbekistan,ECS,Europe & Central Asia,LMC
+VCT,St. Vincent and the Grenadines,LCN,Latin America & Caribbean ,UMC
+VEN,"Venezuela, RB",LCN,Latin America & Caribbean ,LMC
+VNM,Viet Nam,EAS,East Asia & Pacific,UMC
+VUT,Vanuatu,EAS,East Asia & Pacific,LMC
+WSM,Samoa,EAS,East Asia & Pacific,UMC
+XKX,Kosovo,ECS,Europe & Central Asia,UMC
+YEM,"Yemen, Rep.",MEA,"Middle East, North Africa, Afghanistan & Pakistan",LIC
+ZAF,South Africa,SSF,Sub-Saharan Africa ,UMC
+ZMB,Zambia,SSF,Sub-Saharan Africa ,LMC
+ZWE,Zimbabwe,SSF,Sub-Saharan Africa ,LMC

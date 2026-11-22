@@ -1,0 +1,62 @@
+figure,check,python,stata,result
+all,same-survey pairs (n),104.0,104.0,PASS
+Fig RQ1,pairs switching below->at/above median,23.0,23.0,PASS
+Fig RQ1,low-income switchers,13.0,13.0,PASS
+Fig RQ1,LIC: countries (n),23.0,23.0,PASS
+Fig RQ1,LIC: median cat10,6.52,6.52,PASS
+Fig RQ1,LIC: median fh_total,35.064880371,35.06488037,PASS
+Fig RQ1,LMC: countries (n),38.0,38.0,PASS
+Fig RQ1,LMC: median cat10,8.905000000000001,8.905,PASS
+Fig RQ1,LMC: median fh_total,27.0446939465,27.04469395,PASS
+Fig RQ1,UMC: countries (n),43.0,43.0,PASS
+Fig RQ1,UMC: median cat10,8.2,8.2,PASS
+Fig RQ1,UMC: median fh_total,15.040344238,15.04034424,PASS
+Fig 3,Design B countries (n),126.0,126.0,PASS
+Fig 3,Design B R-squared,0.4817515139046732,0.4817515137,PASS
+Fig 3,Design B + GDP countries (n),121.0,121.0,PASS
+Fig 3,"Bangladesh residual, years",8.184812832380516,8.184813348,PASS
+Fig 3,Bangladesh rank (1 = best),2.0,2.0,PASS
+Fig 3,Bangladesh residual with GDP,5.5805447264167185,5.580544185,PASS
+Fig 3,Bangladesh rank with GDP,7.0,7.0,PASS
+Fig 3,Bangladesh life expectancy 2019,73.4,73.4,PASS
+Fig 3,Bangladesh spending per person,128.629979474583,128.6299795,PASS
+Fig RQ4,Bangladesh OOP share 2019,76.47038269,76.47038269,PASS
+Fig RQ4,Bangladesh OOP rank (1 = highest),5.0,5.0,PASS
+Fig RQ4,median OOP share 2019,37.465766905,37.46576691,PASS
+Fig 3,fh_total: countries (n),112.0,112.0,PASS
+Fig 3,fh_total: Spearman residual vs hardship,-0.17726449584856666,-0.1772644958,PASS
+Fig 3,fh_total: Spearman residual(+GDP) vs hardship,-0.09001645515406984,-0.09001645515,PASS
+Fig 3,fh_total: median hardship,23.825768471,23.82576847,PASS
+Fig 3,fh_total: over-performers (>3 y) below median,15.0,15.0,PASS
+Fig 3,fh_total: over-performers (>3 y) at/above median,11.0,11.0,PASS
+Fig RQ2,B3 95% CI lower (t-based) = results_v6,-1.1583681344387424,-1.158368134438744,PASS
+Fig RQ2,B3 95% CI upper (t-based) = results_v6,3.6932617313478167,3.693261731347818,PASS
+Fig RQ2,B1 slope (python vs Stata),4.358163053974751,4.358163065370524,PASS
+Fig RQ2,B1 robust SE (python HC1 vs Stata),0.3926408071739328,0.3926408205052851,PASS
+Fig RQ3,gap_q: countries (n),114.0,114.0,PASS
+Fig RQ3,gap_q: median gap,57.560392305,57.56039047,PASS
+Fig RQ3,gap_q: countries with gap > 0,111.0,111.0,PASS
+Fig RQ3,gap_rur: countries (n),101.0,101.0,PASS
+Fig RQ3,gap_rur: median gap,16.454311371000003,16.45431137,PASS
+Fig RQ3,gap_rur: countries with gap > 0,91.0,91.0,PASS
+Fig RQ3,gap_old: countries (n),72.0,72.0,PASS
+Fig RQ3,gap_old: median gap,7.7489410015,7.748940945,PASS
+Fig RQ3,gap_old: countries with gap > 0,69.0,69.0,PASS
+Fig RQ3,gap_h60: countries (n),99.0,99.0,PASS
+Fig RQ3,gap_h60: median gap,2.225997924999998,2.225997925,PASS
+Fig RQ3,gap_h60: countries with gap > 0,71.0,71.0,PASS
+Fig RQ4,Bangladesh 2016 q1,62.12,62.12,PASS
+Fig RQ4,Bangladesh 2016 q5,16.23,16.23,PASS
+Fig RQ4,Bangladesh 2016 old,40.25,40.25,PASS
+Fig RQ4,Bangladesh 2016 adults,17.38,17.38,PASS
+Fig RQ4,Bangladesh 2016 rur,40.96,40.96,PASS
+Fig RQ4,Bangladesh 2016 urb,21.89,21.89,PASS
+Fig RQ4,Bangladesh 2022 q1,90.79,90.79,PASS
+Fig RQ4,Bangladesh 2022 q5,13.63,13.63,PASS
+Fig RQ4,Bangladesh 2022 old,45.33,45.33,PASS
+Fig RQ4,Bangladesh 2022 adults,20.56,20.56,PASS
+Fig RQ4,Bangladesh 2022 rur,47.88,47.88,PASS
+Fig RQ4,Bangladesh 2022 urb,28.17,28.17,PASS
+Fig RQ3,poorest-richest main OOP coefficient (2 dp),0.6,0.6,PASS
+Fig RQ4,Bangladesh poorest fifth 2022 (abstract 90.8),90.8,90.8,PASS
+Fig RQ4,Bangladesh richest fifth 2022 (abstract 13.6),13.6,13.6,PASS

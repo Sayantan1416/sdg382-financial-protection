@@ -1,0 +1,88 @@
+section,item,value
+S,LMICs (FY2027),131
+S,LMICs LIC,25
+S,LMICs LMC,47
+S,LMICs UMC,59
+A,Countries with survey since 2005,109
+A,Survey year median,2017
+A,Survey year min,2005
+A,Survey year max,2021
+A,cat10 median,8.18
+A,cat10 p25,4.3
+A,cat10 p75,11.81
+A,cat25 median,1.38
+A,Countries with all controls,107
+A,Pearson r cat10-oop,.4395260592427324
+A,Spearman rho cat10-oop,.4992366235695848
+A,Pearson r oop-gov,-.6273429924122239
+A,BGD rank cat10 (1=worst),7
+A,BGD cat10 / median,2.985330073349634
+A,FH2025: countries with survey since 2005,115
+A,FH2025: median,23.515476227
+A,FH2025: survey year median,2019
+A,FH2025: BGD rank (1=worst),8
+B,Countries with spending 2019,129
+B,B1 R2,.4817515137467748
+B,B1 years per doubling,3.020848441182067
+B,B1 n,126
+B,B2 R2,.6011968452685832
+B,BGD rank res_le,2
+B,BGD res_le,8.18481334844023
+B,BGD rank res_le_gdp,7
+B,BGD res_le_gdp,5.580544185011178
+B,BGD rank res_le_wb,2
+B,BGD res_le_wb,8.684645760790659
+B,BGD rank lnU5MR residual (1=best),21
+B,LKA res_le,5.797089748087942
+B,OOP median (B1 sample),37.465766905
+B,BGD OOP rank (1=highest),5
+B,Spearman res_le vs cat10,.1094628563558794
+B,Spearman n,109
+B,Over-performers (>3y) with cat10 < 8,12
+B,Over-performers (>3y) with cat10 >= 8,14
+C,C1 countries,128
+C,C2 countries,124
+C,C3 countries,129
+C,Countries fully observed 2000-2019,121
+BD,BGD le_who 2019,73.40000000000001
+BD,BGD u5mr 2019,32.3
+BD,BGD che_ppp 2019,128.629979474583
+BD,BGD oop 2019,76.47038268999999
+BD,BGD uhc 2019,50
+BD,BGD res_le 2019,8.18481334844023
+BD,BGD res_le_gdp 2019,5.580544185011178
+BD,IND le_who 2019,70.5
+BD,IND u5mr 2019,34.9
+BD,IND che_ppp 2019,211.166615797198
+BD,IND oop 2019,52.00421143
+BD,IND uhc 2019,65
+BD,IND res_le 2019,3.124439178842835
+BD,IND res_le_gdp 2019,1.5502522092318
+BD,NPL le_who 2019,71.09999999999999
+BD,NPL u5mr 2019,31
+BD,NPL che_ppp 2019,189.397470625068
+BD,NPL oop 2019,57.91313171
+BD,NPL uhc 2019,51
+BD,NPL res_le 2019,4.19860495626979
+BD,NPL res_le_gdp 2019,4.456437924171325
+BD,PAK le_who 2019,66.90000000000001
+BD,PAK u5mr 2019,65.8
+BD,PAK che_ppp 2019,143.437200359894
+BD,PAK oop 2019,56.08301163
+BD,PAK uhc 2019,52
+BD,PAK res_le 2019,1.2099597086291
+BD,PAK res_le_gdp 2019,.0210791475229115
+BD,BTN le_who 2019,74.59999999999999
+BD,BTN u5mr 2019,22.7
+BD,BTN che_ppp 2019,417.631234872107
+BD,BTN oop 2019,17.79043007
+BD,BTN uhc 2019,66
+BD,BTN res_le 2019,4.252383239684363
+BD,BTN res_le_gdp 2019,2.10011526252714
+BD,LKA le_who 2019,77
+BD,LKA u5mr 2019,7.2
+BD,LKA che_ppp 2019,508.187128619671
+BD,LKA oop 2019,44.29746628
+BD,LKA uhc 2019,70
+BD,LKA res_le 2019,5.797089748087942
+BD,LKA res_le_gdp 2019,4.227596850273557

@@ -1,0 +1,1968 @@
+-------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/ana
+> lysis_log.smcl
+  log type:  smcl
+ opened on:  20 Nov 2026, 19:01:42
+
+. di as result "Project folder: $root"
+Project folder: C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6
+
+. 
+. * user-written packages (installed once from SSC)
+. foreach p in ftools require reghdfe estout {
+  2.     cap which `p'
+  3.     if _rc ssc install `p', replace
+  4. }
+
+. cap reghdfe, compile          // harmless if already compiled
+
+. 
+. * --- result files ----------------------------------------------------------
+> ---
+. tempname R N
+
+. postfile `R' str4 section str40 model str24 term ///
+>     double(b se p n r2) using "$out/results_estimates.dta", replace
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_es
+    > timates.dta not found)
+
+. postfile `N' str4 section str60 item double value ///
+>     using "$out/results_numeric.dta", replace
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_nu
+    > meric.dta not found)
+
+. 
+. * post one coefficient from the last model
+. cap program drop post_b
+
+. program define post_b
+  1.     args h section model term
+  2.     local b  = _b[`term']
+  3.     local se = _se[`term']
+  4.     if !missing(e(df_r)) local p = 2*ttail(e(df_r), abs(`b'/`se'))
+  5.     else                 local p = 2*normal(-abs(`b'/`se'))
+  6.     post `h' ("`section'") ("`model'") ("`term'") (`b') (`se') (`p') (e(N)
+> ) (e(r2))
+  7. end
+
+. 
+. * post one number
+. cap program drop post_n
+
+. program define post_n
+  1.     args h section item value
+  2.     post `h' ("`section'") ("`item'") (`value')
+  3. end
+
+. 
+. * attach, for each country, the value of `v' from the panel year nearest to
+. * the survey year (svy_year), within +/- 2 years; exact year wins, then earli
+> er
+. cap program drop nearest
+
+. program define nearest
+  1.     args v
+  2.     preserve
+  3.         use iso3 year `v' using "$in/panel.dta", clear
+  4.         drop if missing(`v')
+  5.         rename year y_`v'
+  6.         tempfile t
+  7.         save `t'
+  8.     restore
+  9.     joinby iso3 using `t', unmatched(master)
+ 10.     gen double d_`v' = abs(y_`v' - svy_year)
+ 11.     bysort iso3 (d_`v' y_`v'): keep if _n == 1
+ 12.     replace `v' = . if missing(d_`v') | d_`v' > 2
+ 13.     drop _merge d_`v' y_`v'
+ 14. end
+
+. 
+. *----------------------------------------------------------------------------
+> --
+. * 1. SAMPLE COUNTS
+. *----------------------------------------------------------------------------
+> --
+. use "$in/panel.dta", clear
+(LMIC panel 2000-2023, WDI + WHO GHO)
+
+. quietly levelsof iso3, local(all)
+
+. post_n `N' "S" "LMICs (FY2027)" `: word count `all''
+
+. foreach g in LIC LMC UMC {
+  2.     quietly levelsof iso3 if income == "`g'", local(x)
+  3.     post_n `N' "S" "LMICs `g'" `: word count `x''
+  4. }
+
+. 
+. *----------------------------------------------------------------------------
+> --
+. * 2. ANALYSIS A -- FINANCIAL PROTECTION (one row per country)
+. *    Outcome: % population with OOP > 10% (25%) of budget, latest survey >=20
+> 05
+. *    Exposures/controls: measured in the survey year (+/- 2 years)
+. *----------------------------------------------------------------------------
+> --
+. use "$in/fp_surveys.dta", clear
+(Financial protection survey points, national totals)
+
+. keep if !missing(cat10) & year >= 2005
+(305 observations deleted)
+
+. bysort iso3 (year): keep if _n == _N
+(364 observations deleted)
+
+. rename year svy_year
+
+. keep iso3 country region income svy_year cat10 cat25
+
+. foreach v in oop gov ext gdp_ppp uhc {
+  2.     nearest `v'
+  3. }
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(127 observations deleted)
+file C:\Users\<user>\AppData\Local\Temp\ST_5d30_000002.tmp saved as .dta
+    format
+(2,446 observations deleted)
+(0 real changes made)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(127 observations deleted)
+file C:\Users\<user>\AppData\Local\Temp\ST_5d30_000002.tmp saved as .dta
+    format
+(2,446 observations deleted)
+(0 real changes made)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(234 observations deleted)
+file C:\Users\<user>\AppData\Local\Temp\ST_5d30_000002.tmp saved as .dta
+    format
+(1 missing value generated)
+(2,340 observations deleted)
+(2 real changes made, 2 to missing)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(166 observations deleted)
+file C:\Users\<user>\AppData\Local\Temp\ST_5d30_000002.tmp saved as .dta
+    format
+(2 missing values generated)
+(2,447 observations deleted)
+(0 real changes made)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(24 observations deleted)
+file C:\Users\<user>\AppData\Local\Temp\ST_5d30_000002.tmp saved as .dta
+    format
+(2,507 observations deleted)
+(0 real changes made)
+
+. * OOP in 2019 (alternative timing; the abstract does not say which year it us
+> ed)
+. preserve
+
+.     use iso3 year oop if year == 2019 using "$in/panel.dta", clear
+(LMIC panel 2000-2023, WDI + WHO GHO)
+
+.     rename oop oop19
+
+.     drop year
+
+.     tempfile o19
+
+.     save `o19'
+file C:\Users\<user>\AppData\Local\Temp\ST_5d30_000002.tmp saved as .dta
+    format
+
+. restore
+
+. merge 1:1 iso3 using `o19', keep(master match) nogen
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                               109  
+    -----------------------------------------
+
+. 
+. gen lngdp = ln(gdp_ppp)
+(2 missing values generated)
+
+. encode region, gen(reg)
+
+. encode income, gen(inc)
+
+. label var cat10 "Catastrophic OOP >10% of budget (% pop)"
+
+. label var cat25 "Catastrophic OOP >25% of budget (% pop)"
+
+. label var oop   "OOP % of current health expenditure (survey year)"
+
+. label var gov   "Govt % of CHE (survey year)"
+
+. label var lngdp "ln GDP per capita, PPP 2021$"
+
+. label var uhc   "UHC service coverage index"
+
+. 
+. * descriptives
+. count
+  109
+
+. post_n `N' "A" "Countries with survey since 2005" r(N)
+
+. summ svy_year, detail
+
+                          svy_year
+-------------------------------------------------------------
+      Percentiles      Smallest
+ 1%         2006           2005
+ 5%         2008           2006
+10%         2012           2007       Obs                 109
+25%         2015           2007       Sum of wgt.         109
+
+50%         2017                      Mean           2016.385
+                        Largest       Std. dev.      3.503724
+75%         2019           2021
+90%         2021           2021       Variance       12.27608
+95%         2021           2021       Skewness       -1.16196
+99%         2021           2021       Kurtosis       4.388276
+
+. post_n `N' "A" "Survey year median" r(p50)
+
+. post_n `N' "A" "Survey year min" r(min)
+
+. post_n `N' "A" "Survey year max" r(max)
+
+. summ cat10, detail
+
+           Catastrophic OOP >10% of budget (% pop)
+-------------------------------------------------------------
+      Percentiles      Smallest
+ 1%          .13              0
+ 5%         1.03            .13
+10%         1.52             .2       Obs                 109
+25%          4.3            .28       Sum of wgt.         109
+
+50%         8.18                      Mean           9.139083
+                        Largest       Std. dev.       7.19996
+75%        11.81           26.6
+90%        17.86          31.14       Variance       51.83943
+95%        24.73          31.41       Skewness       1.395545
+99%        31.41          35.53       Kurtosis       5.033695
+
+. post_n `N' "A" "cat10 median" r(p50)
+
+. post_n `N' "A" "cat10 p25" r(p25)
+
+. post_n `N' "A" "cat10 p75" r(p75)
+
+. local med10 = r(p50)
+
+. summ cat25, detail
+
+           Catastrophic OOP >25% of budget (% pop)
+-------------------------------------------------------------
+      Percentiles      Smallest
+ 1%            0              0
+ 5%          .03              0
+10%          .13            .01       Obs                 109
+25%          .67            .02       Sum of wgt.         109
+
+50%         1.38                      Mean           2.140459
+                        Largest       Std. dev.       2.29927
+75%         2.95           8.45
+90%         5.93           8.86       Variance       5.286641
+95%         7.03            9.1       Skewness       1.969175
+99%          9.1          12.48       Kurtosis        7.17293
+
+. post_n `N' "A" "cat25 median" r(p50)
+
+. count if !missing(cat10, oop, lngdp, uhc)
+  107
+
+. post_n `N' "A" "Countries with all controls" r(N)
+
+. 
+. * correlations
+. pwcorr cat10 oop
+
+             |    cat10      oop
+-------------+------------------
+       cat10 |   1.0000 
+         oop |   0.4395   1.0000 
+
+. post_n `N' "A" "Pearson r cat10-oop" r(rho)
+
+. spearman cat10 oop
+
+ Number of obs =     109
+Spearman's rho =       0.4992
+
+Test of H0: cat10 and oop are independent
+    Prob > |t| =       0.0000
+
+. post_n `N' "A" "Spearman rho cat10-oop" r(rho)
+
+. pwcorr oop gov
+
+             |      oop      gov
+-------------+------------------
+         oop |   1.0000 
+         gov |  -0.6273   1.0000 
+
+. post_n `N' "A" "Pearson r oop-gov" r(rho)
+
+. 
+. * Bangladesh rank (1 = highest catastrophic spending)
+. egen rank10 = rank(cat10), field
+
+. summ rank10 if iso3 == "BGD"
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+      rank10 |          1           7           .          7          7
+
+. post_n `N' "A" "BGD rank cat10 (1=worst)" r(mean)
+
+. summ cat10 if iso3 == "BGD"
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+       cat10 |          1       24.42           .      24.42      24.42
+
+. post_n `N' "A" "BGD cat10 / median" r(mean)/`med10'
+
+. 
+. * models (robust = HC1, as in the abstract; HC3 shown as robustness)
+. eststo clear
+
+. eststo A1: regress cat10 oop, vce(robust)
+
+Linear regression                               Number of obs     =        109
+                                                F(1, 107)         =      39.06
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.1932
+                                                Root MSE          =     6.4974
+
+------------------------------------------------------------------------------
+             |               Robust
+       cat10 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |   .1648031    .026371     6.25   0.000     .1125257    .2170804
+       _cons |   2.755236   1.017648     2.71   0.008     .7378671    4.772605
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "A1 cat10 ~ oop" oop
+
+. eststo A2: regress cat10 oop lngdp uhc i.reg, vce(robust)
+
+Linear regression                               Number of obs     =        107
+                                                F(8, 98)          =       7.15
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.2986
+                                                Root MSE          =     6.3008
+
+------------------------------------------------------------------------------
+             |               Robust
+       cat10 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |   .1602436   .0268895     5.96   0.000     .1068823     .213605
+       lngdp |    2.43185    1.64002     1.48   0.141    -.8227161    5.686417
+         uhc |  -.0563324    .098169    -0.57   0.567    -.2511455    .1384807
+             |
+         reg |
+        ECS  |   1.014606   2.605948     0.39   0.698    -4.156813    6.186026
+        LCN  |   .8394566   2.414247     0.35   0.729    -3.951538    5.630451
+        MEA  |   4.705559   3.110251     1.51   0.134    -1.466633    10.87775
+        SAS  |   2.540366   2.826128     0.90   0.371    -3.067992    8.148724
+        SSF  |  -.1953281   1.732143    -0.11   0.910     -3.63271    3.242054
+             |
+       _cons |  -16.34657   10.25121    -1.59   0.114    -36.68976    3.996627
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "A2 cat10 ~ oop + controls" oop
+
+. post_b `R' "A" "A2 cat10 ~ oop + controls" lngdp
+
+. post_b `R' "A" "A2 cat10 ~ oop + controls" uhc
+
+. estat vif
+
+    Variable |       VIF       1/VIF  
+-------------+----------------------
+         oop |      1.20    0.833881
+       lngdp |      3.40    0.294052
+         uhc |      4.22    0.237166
+         reg |
+          2  |      2.00    0.499185
+          3  |      2.02    0.495098
+          4  |      1.78    0.561597
+          5  |      1.40    0.713695
+          6  |      3.32    0.301001
+-------------+----------------------
+    Mean VIF |      2.42
+
+. eststo A3: regress cat10 oop lngdp uhc i.reg c.svy_year, vce(robust)
+
+Linear regression                               Number of obs     =        107
+                                                F(9, 97)          =       7.51
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.3195
+                                                Root MSE          =     6.2378
+
+------------------------------------------------------------------------------
+             |               Robust
+       cat10 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |   .1542268   .0266262     5.79   0.000     .1013811    .2070724
+       lngdp |   2.510946   1.623095     1.55   0.125    -.7104481     5.73234
+         uhc |   -.085077   .1038039    -0.82   0.414     -.291099     .120945
+             |
+         reg |
+        ECS  |   .8334497    2.53904     0.33   0.743    -4.205842    5.872741
+        LCN  |   1.271083   2.412548     0.53   0.599    -3.517158    6.059324
+        MEA  |   4.961936    3.15648     1.57   0.119    -1.302803    11.22667
+        SAS  |   2.632269   2.802098     0.94   0.350     -2.92912    8.193659
+        SSF  |  -.3491853   1.707259    -0.20   0.838    -3.737623    3.039252
+             |
+    svy_year |   .3123229   .1517782     2.06   0.042     .0110851    .6135607
+       _cons |   -644.921    308.584    -2.09   0.039    -1257.375   -32.46711
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "A3 A2 + survey-year trend" oop
+
+. eststo A4: regress cat25 oop, vce(robust)
+
+Linear regression                               Number of obs     =        109
+                                                F(1, 107)         =      13.92
+                                                Prob > F          =     0.0003
+                                                R-squared         =     0.0981
+                                                Root MSE          =     2.1938
+
+------------------------------------------------------------------------------
+             |               Robust
+       cat25 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |   .0374985     .01005     3.73   0.000     .0175755    .0574215
+       _cons |   .6879093   .3962439     1.74   0.085     -.097598    1.473417
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "A4 cat25 ~ oop" oop
+
+. eststo A5: regress cat25 oop lngdp uhc i.reg, vce(robust)
+
+Linear regression                               Number of obs     =        107
+                                                F(8, 98)          =       3.20
+                                                Prob > F          =     0.0029
+                                                R-squared         =     0.1810
+                                                Root MSE          =     2.1759
+
+------------------------------------------------------------------------------
+             |               Robust
+       cat25 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |    .036146   .0095043     3.80   0.000     .0172849    .0550071
+       lngdp |   .6559502   .6094526     1.08   0.284    -.5534886    1.865389
+         uhc |  -.0253689   .0353738    -0.72   0.475    -.0955671    .0448293
+             |
+         reg |
+        ECS  |  -.6427534    .805189    -0.80   0.427    -2.240625    .9551179
+        LCN  |   .2121196   .8077895     0.26   0.793    -1.390912    1.815152
+        MEA  |   .5523342   .8792941     0.63   0.531    -1.192596    2.297265
+        SAS  |   1.444437   1.152142     1.25   0.213    -.8419504    3.730825
+        SSF  |   -.529392   .6127399    -0.86   0.390    -1.745354    .6865704
+             |
+       _cons |    -3.5016   3.751177    -0.93   0.353    -10.94569    3.942488
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "A5 cat25 ~ oop + controls" oop
+
+. eststo A6: regress cat10 gov, vce(robust)
+
+Linear regression                               Number of obs     =        109
+                                                F(1, 107)         =       6.02
+                                                Prob > F          =     0.0157
+                                                R-squared         =     0.0394
+                                                Root MSE          =     7.0894
+
+------------------------------------------------------------------------------
+             |               Robust
+       cat10 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         gov |  -.0737177    .030033    -2.45   0.016    -.1332547   -.0141808
+       _cons |   12.16186   1.483771     8.20   0.000     9.220462    15.10327
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "A6 cat10 ~ gov" gov
+
+. eststo A7: regress cat10 gov lngdp uhc i.reg, vce(robust)
+
+Linear regression                               Number of obs     =        107
+                                                F(8, 98)          =       6.95
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.3023
+                                                Root MSE          =     6.2841
+
+------------------------------------------------------------------------------
+             |               Robust
+       cat10 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         gov |  -.2018864   .0339823    -5.94   0.000    -.2693232   -.1344497
+       lngdp |   4.852234    1.70071     2.85   0.005      1.47723    8.227237
+         uhc |  -.1239475   .0938444    -1.32   0.190    -.3101787    .0622837
+             |
+         reg |
+        ECS  |   2.204317   2.621754     0.84   0.403    -2.998468    7.407103
+        LCN  |   .8798789   2.577731     0.34   0.734    -4.235545    5.995303
+        MEA  |   4.670063   3.090665     1.51   0.134     -1.46326    10.80339
+        SAS  |   2.629538   2.891982     0.91   0.365    -3.109506    8.368581
+        SSF  |  -2.528166   1.854984    -1.36   0.176    -6.209321    1.152989
+             |
+       _cons |  -18.59097   10.69013    -1.74   0.085    -39.80519    2.623253
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "A7 cat10 ~ gov + controls" gov
+
+. eststo A8: regress cat10 uhc lngdp, vce(robust)
+
+Linear regression                               Number of obs     =        107
+                                                F(2, 104)         =       2.93
+                                                Prob > F          =     0.0576
+                                                R-squared         =     0.0447
+                                                Root MSE          =     7.1376
+
+------------------------------------------------------------------------------
+             |               Robust
+       cat10 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         uhc |  -.0687564   .0971557    -0.71   0.481    -.2614199     .123907
+       lngdp |   2.596492   1.573135     1.65   0.102    -.5230942    5.716078
+       _cons |  -10.04507   9.011919    -1.11   0.268    -27.91604    7.825906
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "A8 cat10 ~ uhc + lngdp" uhc
+
+. 
+. * robustness
+. regress cat10 oop lngdp uhc i.reg, vce(hc3)
+
+Linear regression                               Number of obs     =        107
+                                                F(8, 98)          =       6.38
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.2986
+                                                Root MSE          =     6.3008
+
+------------------------------------------------------------------------------
+             |             Robust HC3
+       cat10 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |   .1602436   .0285818     5.61   0.000      .103524    .2169633
+       lngdp |    2.43185   1.716818     1.42   0.160    -.9751186    5.838819
+         uhc |  -.0563324    .103757    -0.54   0.588    -.2622348    .1495699
+             |
+         reg |
+        ECS  |   1.014606   2.755564     0.37   0.714    -4.453721    6.482933
+        LCN  |   .8394566   2.557721     0.33   0.743    -4.236257     5.91517
+        MEA  |   4.705559   3.327009     1.41   0.160    -1.896783     11.3079
+        SAS  |   2.540366   3.214706     0.79   0.431    -3.839113    8.919845
+        SSF  |  -.1953281    1.83499    -0.11   0.915    -3.836807    3.446151
+             |
+       _cons |  -16.34657   10.76299    -1.52   0.132    -37.70537    5.012237
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "R1 A2 with HC3 SEs" oop
+
+. regress cat10 oop19 lngdp uhc i.reg, vce(robust)
+
+Linear regression                               Number of obs     =        107
+                                                F(8, 98)          =       7.31
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.3045
+                                                Root MSE          =     6.2738
+
+------------------------------------------------------------------------------
+             |               Robust
+       cat10 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       oop19 |   .1613587   .0272302     5.93   0.000     .1073212    .2153962
+       lngdp |    2.30219   1.662797     1.38   0.169    -.9975771    5.601958
+         uhc |  -.0377931   .1016175    -0.37   0.711    -.2394496    .1638635
+             |
+         reg |
+        ECS  |   .7630757   2.574287     0.30   0.768    -4.345512    5.871664
+        LCN  |   1.213473   2.392762     0.51   0.613    -3.534886    5.961832
+        MEA  |   5.291148    3.06665     1.73   0.088    -.7945188    11.37681
+        SAS  |   2.870906   2.760984     1.04   0.301    -2.608176    8.349988
+        SSF  |   .4752179   1.710981     0.28   0.782    -2.920169    3.870605
+             |
+       _cons |  -16.69547   10.17252    -1.64   0.104    -36.88251    3.491569
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "R2 A2 with OOP in 2019" oop19
+
+. regress cat10 oop lngdp uhc i.inc, vce(robust)
+
+Linear regression                               Number of obs     =        107
+                                                F(5, 101)         =      11.42
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.3161
+                                                Root MSE          =     6.1286
+
+------------------------------------------------------------------------------
+             |               Robust
+       cat10 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |   .1761454   .0283384     6.22   0.000     .1199297    .2323612
+       lngdp |    4.68597   2.128852     2.20   0.030     .4628993    8.909041
+         uhc |   .0166058   .0906976     0.18   0.855    -.1633139    .1965255
+             |
+         inc |
+        LMC  |  -1.129145   2.000684    -0.56   0.574    -5.097963    2.839674
+        UMC  |  -6.708628   3.534969    -1.90   0.061    -13.72106    .3037997
+             |
+       _cons |  -37.18602   13.78175    -2.70   0.008    -64.52531   -9.846742
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "R3 income-group instead of region" oop
+
+. regress cat10 oop lngdp uhc i.reg if svy_year >= 2012, vce(robust)
+
+Linear regression                               Number of obs     =         97
+                                                F(8, 88)          =       6.89
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.3073
+                                                Root MSE          =      6.422
+
+------------------------------------------------------------------------------
+             |               Robust
+       cat10 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |   .1695118    .029802     5.69   0.000     .1102866    .2287369
+       lngdp |   2.606636   1.729126     1.51   0.135    -.8296393    6.042911
+         uhc |  -.0627042    .103955    -0.60   0.548    -.2692929    .1438845
+             |
+         reg |
+        ECS  |    .907464   2.780877     0.33   0.745    -4.618945    6.433873
+        LCN  |   1.159242   2.584965     0.45   0.655    -3.977833    6.296317
+        MEA  |   4.956974   3.253823     1.52   0.131    -1.509314    11.42326
+        SAS  |   2.056545   2.946088     0.70   0.487    -3.798186    7.911276
+        SSF  |  -.3118641   2.070749    -0.15   0.881    -4.427043    3.803315
+             |
+       _cons |  -17.48218    11.0745    -1.58   0.118    -39.49041    4.526057
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "R4 surveys 2012+" oop
+
+. quietly regress cat10 oop lngdp uhc i.reg
+
+. predict double cook if e(sample), cooksd
+(2 missing values generated)
+
+. regress cat10 oop lngdp uhc i.reg if cook <= 4/e(N), vce(robust)
+
+Linear regression                               Number of obs     =         97
+                                                F(8, 88)          =       7.77
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.3686
+                                                Root MSE          =     4.0358
+
+------------------------------------------------------------------------------
+             |               Robust
+       cat10 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |   .1315224   .0227343     5.79   0.000     .0863428     .176702
+       lngdp |   1.095497    .659907     1.66   0.100    -.2159297    2.406923
+         uhc |  -.0100921   .0488666    -0.21   0.837    -.1072041    .0870199
+             |
+         reg |
+        ECS  |   1.580855   1.800404     0.88   0.382     -1.99707     5.15878
+        LCN  |   1.258509   1.640246     0.77   0.445    -2.001135    4.518154
+        MEA  |   2.864199   2.294692     1.25   0.215    -1.696019    7.424417
+        SAS  |   3.906109   2.098476     1.86   0.066    -.2641721    8.076389
+        SSF  |    .161759   1.318052     0.12   0.903    -2.457593    2.781111
+             |
+       _cons |  -7.385852    4.55203    -1.62   0.108    -16.43205    1.660351
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "R5 drop Cook's D > 4/n" oop
+
+. gen cat10p = cat10/100
+
+. glm cat10p oop lngdp uhc i.reg, family(binomial) link(logit) vce(robust)
+note: cat10p has noninteger values
+
+Iteration 0:   log pseudolikelihood = -24.718795  
+Iteration 1:   log pseudolikelihood = -23.333178  
+Iteration 2:   log pseudolikelihood = -23.317913  
+Iteration 3:   log pseudolikelihood = -23.317902  
+Iteration 4:   log pseudolikelihood = -23.317902  
+
+Generalized linear models                         Number of obs   =        107
+Optimization     : ML                             Residual df     =         98
+                                                  Scale parameter =          1
+Deviance         =  4.147633743                   (1/df) Deviance =   .0423228
+Pearson          =  4.564332411                   (1/df) Pearson  =   .0465748
+
+Variance function: V(u) = u*(1-u/1)               [Binomial]
+Link function    : g(u) = ln(u/(1-u))             [Logit]
+
+                                                  AIC             =   .6040729
+Log pseudolikelihood = -23.31790214               BIC             =  -453.7896
+
+------------------------------------------------------------------------------
+             |               Robust
+      cat10p | Coefficient  std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |   .0217137   .0032538     6.67   0.000     .0153363     .028091
+       lngdp |    .394428   .2141748     1.84   0.066     -.025347     .814203
+         uhc |  -.0094979   .0122428    -0.78   0.438    -.0334933    .0144975
+             |
+         reg |
+        ECS  |   .1147462   .3062777     0.37   0.708     -.485547    .7150394
+        LCN  |   .1629164   .3153372     0.52   0.605    -.4551332     .780966
+        MEA  |   .5086928   .3032861     1.68   0.093     -.085737    1.103123
+        SAS  |   .2962427   .2988657     0.99   0.322    -.2895234    .8820087
+        SSF  |  -.0229138   .2481861    -0.09   0.926    -.5093496    .4635221
+             |
+       _cons |  -6.313615   1.371898    -4.60   0.000    -9.002485   -3.624745
+------------------------------------------------------------------------------
+
+. margins, dydx(oop) post
+
+Average marginal effects                                   Number of obs = 107
+Model VCE: Robust
+
+Expression: Predicted mean cat10p, predict()
+dy/dx wrt:  oop
+
+------------------------------------------------------------------------------
+             |            Delta-method
+             |      dy/dx   std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |   .0017521   .0002657     6.59   0.000     .0012314    .0022729
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "R6 fractional logit AME" oop
+
+. gen lncat10 = ln(cat10 + 0.5)
+
+. regress lncat10 oop lngdp uhc i.reg, vce(robust)
+
+Linear regression                               Number of obs     =        107
+                                                F(8, 98)          =       7.79
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.3896
+                                                Root MSE          =     .70313
+
+------------------------------------------------------------------------------
+             |               Robust
+     lncat10 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |   .0236357    .003926     6.02   0.000     .0158447    .0314267
+       lngdp |   .2567464   .1472116     1.74   0.084    -.0353902     .548883
+         uhc |    .000243    .009953     0.02   0.981    -.0195084    .0199945
+             |
+         reg |
+        ECS  |   .3475791   .2781653     1.25   0.214    -.2044309    .8995891
+        LCN  |   .4426082   .2845033     1.56   0.123    -.1219792    1.007196
+        MEA  |    .544436   .2994435     1.82   0.072    -.0497999    1.138672
+        SAS  |   .5263973   .2941471     1.79   0.077     -.057328    1.110123
+        SSF  |   .2131631   .2720582     0.78   0.435    -.3267276    .7530538
+             |
+       _cons |  -1.559032   1.128907    -1.38   0.170    -3.799311    .6812463
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "R7 ln(cat10+0.5)" oop
+
+. 
+. esttab A1 A2 A3 A4 A5 A6 A7 A8 using "$out/tables_A.rtf", replace ///
+>     b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) r2 ///
+>     drop(*.reg, relax) label title("Analysis A: catastrophic health spending"
+> )
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/tables_A.r
+    > tf not found)
+(output written to C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/outp
+> ut/tables_A.rtf)
+
+. 
+. save "$out/crossA.dta", replace
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/crossA.dta
+    not found)
+file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/crossA.dta
+    saved
+
+. export delimited using "$out/crossA.csv", replace
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/crossA.csv
+    not found)
+file C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/crossA.csv 
+> saved
+
+. 
+. * --- A (2025 SDG definition): financial hardship ---------------------------
+> --
+. use "$in/fp_surveys.dta", clear
+(Financial protection survey points, national totals)
+
+. keep if !missing(fh_total) & year >= 2005
+(222 observations deleted)
+
+. bysort iso3 (year): keep if _n == _N
+(441 observations deleted)
+
+. rename year svy_year
+
+. keep iso3 region svy_year fh_total fh_impov fh_large
+
+. foreach v in oop gdp_ppp uhc {
+  2.     nearest `v'
+  3. }
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(127 observations deleted)
+file C:\Users\<user>\AppData\Local\Temp\ST_5d30_000004.tmp saved as .dta
+    format
+(1 missing value generated)
+(2,561 observations deleted)
+(0 real changes made)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(166 observations deleted)
+file C:\Users\<user>\AppData\Local\Temp\ST_5d30_000004.tmp saved as .dta
+    format
+(2 missing values generated)
+(2,577 observations deleted)
+(0 real changes made)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(24 observations deleted)
+file C:\Users\<user>\AppData\Local\Temp\ST_5d30_000004.tmp saved as .dta
+    format
+(1 missing value generated)
+(2,622 observations deleted)
+(0 real changes made)
+
+. gen lngdp = ln(gdp_ppp)
+(2 missing values generated)
+
+. encode region, gen(reg)
+
+. count
+  115
+
+. post_n `N' "A" "FH2025: countries with survey since 2005" r(N)
+
+. summ fh_total, detail
+
+                          fh_total
+-------------------------------------------------------------
+      Percentiles      Smallest
+ 1%      2.08883       .4631142
+ 5%     6.743035        2.08883
+10%     9.637415       3.406863       Obs                 115
+25%     13.03833       4.809303       Sum of wgt.         115
+
+50%     23.51548                      Mean           23.80601
+                        Largest       Std. dev.      12.44848
+75%     33.55432       47.89394
+90%     38.84091        52.9657       Variance       154.9645
+95%     43.28897       56.63509       Skewness       .4255501
+99%     56.63509       60.03372       Kurtosis       2.650662
+
+. post_n `N' "A" "FH2025: median" r(p50)
+
+. summ svy_year, detail
+
+                          svy_year
+-------------------------------------------------------------
+      Percentiles      Smallest
+ 1%         2007           2005
+ 5%         2012           2007
+10%         2013           2008       Obs                 115
+25%         2016           2010       Sum of wgt.         115
+
+50%         2019                      Mean           2018.191
+                        Largest       Std. dev.      3.760122
+75%         2021           2023
+90%         2022           2023       Variance       14.13852
+95%         2023           2024       Skewness      -.8398622
+99%         2024           2024       Kurtosis       3.746225
+
+. post_n `N' "A" "FH2025: survey year median" r(p50)
+
+. egen rankfh = rank(fh_total), field
+
+. summ rankfh if iso3 == "BGD"
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+      rankfh |          1           8           .          8          8
+
+. post_n `N' "A" "FH2025: BGD rank (1=worst)" r(mean)
+
+. regress fh_total oop, vce(robust)
+
+Linear regression                               Number of obs     =        114
+                                                F(1, 112)         =      34.89
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.1899
+                                                Root MSE          =     11.272
+
+------------------------------------------------------------------------------
+             |               Robust
+    fh_total | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |   .2664998   .0451154     5.91   0.000     .1771095    .3558901
+       _cons |   14.11586   1.993053     7.08   0.000     10.16688    18.06484
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "A9 fh2025 ~ oop" oop
+
+. regress fh_total oop lngdp uhc i.reg, vce(robust)
+
+Linear regression                               Number of obs     =        112
+                                                F(8, 103)         =      22.06
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.5650
+                                                Root MSE          =     8.5765
+
+------------------------------------------------------------------------------
+             |               Robust
+    fh_total | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |    .297952   .0422456     7.05   0.000     .2141678    .3817363
+       lngdp |  -5.151995   2.100844    -2.45   0.016    -9.318523   -.9854665
+         uhc |   .1945857   .1175587     1.66   0.101    -.0385642    .4277357
+             |
+         reg |
+        ECS  |  -4.756656   2.858153    -1.66   0.099    -10.42513    .9118168
+        LCN  |   2.369453   3.024083     0.78   0.435    -3.628102    8.367008
+        MEA  |   2.186249   3.104564     0.70   0.483    -3.970921    8.343419
+        SAS  |    1.60417   3.719449     0.43   0.667    -5.772479     8.98082
+        SSF  |   12.26027   2.409527     5.09   0.000     7.481544      17.039
+             |
+       _cons |   42.36287   15.35233     2.76   0.007     11.91515     72.8106
+------------------------------------------------------------------------------
+
+. post_b `R' "A" "A10 fh2025 ~ oop + controls" oop
+
+. save "$out/crossA_fh2025.dta", replace
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/crossA_fh2
+    > 025.dta not found)
+file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/crossA_fh2
+    > 025.dta saved
+
+. 
+. *----------------------------------------------------------------------------
+> --
+. * 3. ANALYSIS B -- OUTCOMES RELATIVE TO SPENDING, 2019
+. *----------------------------------------------------------------------------
+> --
+. use "$in/panel.dta" if year == 2019, clear
+(LMIC panel 2000-2023, WDI + WHO GHO)
+
+. drop if missing(che_ppp)
+(2 observations deleted)
+
+. gen lnche = ln(che_ppp)
+
+. gen lngdp = ln(gdp_ppp)
+(5 missing values generated)
+
+. gen lnu5  = ln(u5mr)
+
+. encode region, gen(reg)
+
+. label var lnche "ln CHE per capita, PPP"
+
+. count
+  129
+
+. post_n `N' "B" "Countries with spending 2019" r(N)
+
+. 
+. eststo clear
+
+. eststo B1: regress le_who lnche, vce(robust)
+
+Linear regression                               Number of obs     =        126
+                                                F(1, 124)         =     123.20
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.4818
+                                                Root MSE          =      4.693
+
+------------------------------------------------------------------------------
+             |               Robust
+      le_who | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       lnche |   4.358163   .3926408    11.10   0.000     3.581017    5.135309
+       _cons |   44.04785   2.395751    18.39   0.000     39.30599    48.78971
+------------------------------------------------------------------------------
+
+. post_b `R' "B" "B1 LE ~ lnche" lnche
+
+. post_n `N' "B" "B1 R2" e(r2)
+
+. post_n `N' "B" "B1 years per doubling" _b[lnche]*ln(2)
+
+. post_n `N' "B" "B1 n" e(N)
+
+. predict double res_le if e(sample), resid
+(3 missing values generated)
+
+. eststo B2: regress lnu5 lnche, vce(robust)
+
+Linear regression                               Number of obs     =        129
+                                                F(1, 127)         =     192.55
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.6012
+                                                Root MSE          =     .52899
+
+------------------------------------------------------------------------------
+             |               Robust
+        lnu5 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       lnche |  -.6268843   .0451771   -13.88   0.000    -.7162817    -.537487
+       _cons |   7.020051   .2645988    26.53   0.000     6.496458    7.543645
+------------------------------------------------------------------------------
+
+. post_b `R' "B" "B2 lnU5MR ~ lnche" lnche
+
+. post_n `N' "B" "B2 R2" e(r2)
+
+. predict double res_u5 if e(sample), resid
+
+. eststo B3: regress le_who lnche lngdp, vce(robust)
+
+Linear regression                               Number of obs     =        121
+                                                F(2, 118)         =      66.87
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.5452
+                                                Root MSE          =     4.4179
+
+------------------------------------------------------------------------------
+             |               Robust
+      le_who | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       lnche |   1.267447   1.224991     1.03   0.303    -1.158368    3.693262
+       lngdp |   4.220002   1.581329     2.67   0.009     1.088541    7.351464
+       _cons |   24.39966   7.809024     3.12   0.002     8.935669    39.86365
+------------------------------------------------------------------------------
+
+. post_b `R' "B" "B3 LE ~ lnche + lngdp" lnche
+
+. post_b `R' "B" "B3 LE ~ lnche + lngdp" lngdp
+
+. predict double res_le_gdp if e(sample), resid
+(8 missing values generated)
+
+. eststo B4: regress le_wb lnche, vce(robust)
+
+Linear regression                               Number of obs     =        129
+                                                F(1, 127)         =      96.01
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.4801
+                                                Root MSE          =      5.013
+
+------------------------------------------------------------------------------
+             |               Robust
+       le_wb | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       lnche |   4.649142   .4744758     9.80   0.000      3.71024    5.588044
+       _cons |   41.35975   3.005562    13.76   0.000     35.41229    47.30722
+------------------------------------------------------------------------------
+
+. post_b `R' "B" "B4 LE (UN WPP) ~ lnche" lnche
+
+. predict double res_le_wb if e(sample), resid
+
+. gen lnche2 = lnche^2
+
+. eststo B5: regress le_who lnche lnche2, vce(robust)
+
+Linear regression                               Number of obs     =        126
+                                                F(2, 123)         =      80.51
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.4844
+                                                Root MSE          =     4.6998
+
+------------------------------------------------------------------------------
+             |               Robust
+      le_who | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       lnche |   8.181126   4.230123     1.93   0.055    -.1921426    16.55439
+      lnche2 |  -.3287784   .3441235    -0.96   0.341     -1.00995    .3523931
+       _cons |    33.2842   12.65985     2.63   0.010     8.224798    58.34359
+------------------------------------------------------------------------------
+
+. post_b `R' "B" "B5 quadratic" lnche2
+
+. 
+. * does the OOP share explain over/under-performance?
+. regress res_le oop, vce(robust)
+
+Linear regression                               Number of obs     =        126
+                                                F(1, 124)         =       0.20
+                                                Prob > F          =     0.6517
+                                                R-squared         =     0.0026
+                                                Root MSE          =      4.687
+
+------------------------------------------------------------------------------
+             |               Robust
+      res_le | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |   .0115965   .0256244     0.45   0.652    -.0391214    .0623144
+       _cons |  -.4370054   1.081072    -0.40   0.687    -2.576751     1.70274
+------------------------------------------------------------------------------
+
+. post_b `R' "B" "B6 residual ~ oop" oop
+
+. 
+. * ranks (1 = largest positive residual / highest OOP)
+. * (egen rank ignores missing values; field = 1 for the largest, track = 1 for
+>  the smallest)
+. foreach r in res_le res_le_gdp res_le_wb {
+  2.     egen rk_`r' = rank(`r'), field
+  3.     summ rk_`r' if iso3 == "BGD"
+  4.     post_n `N' "B" "BGD rank `r'" r(mean)
+  5.     summ `r' if iso3 == "BGD"
+  6.     post_n `N' "B" "BGD `r'" r(mean)
+  7. }
+(3 missing values generated)
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+   rk_res_le |          1           2           .          2          2
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+      res_le |          1    8.184813           .   8.184813   8.184813
+(8 missing values generated)
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+rk_res_le_~p |          1           7           .          7          7
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+  res_le_gdp |          1    5.580544           .   5.580544   5.580544
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+rk_res_le_wb |          1           2           .          2          2
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+   res_le_wb |          1    8.684646           .   8.684646   8.684646
+
+. egen rk_res_u5 = rank(res_u5), track
+
+. summ rk_res_u5 if iso3 == "BGD"
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+   rk_res_u5 |          1          21           .         21         21
+
+. post_n `N' "B" "BGD rank lnU5MR residual (1=best)" r(mean)
+
+. summ res_le if iso3 == "LKA"
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+      res_le |          1     5.79709           .    5.79709    5.79709
+
+. post_n `N' "B" "LKA res_le" r(mean)
+
+. 
+. * OOP rank and median among the B1 sample
+. summ oop if !missing(res_le), detail
+
+                             oop
+-------------------------------------------------------------
+      Percentiles      Smallest
+ 1%     2.694893       .6305582
+ 5%     7.252383       2.694893
+10%     9.216986       3.588588       Obs                 126
+25%     23.08802        4.49591       Sum of wgt.         126
+
+50%     37.46577                      Mean           37.68424
+                        Largest       Std. dev.      20.37518
+75%     52.32635       76.56387
+90%     67.50371       76.63579       Variance       415.1479
+95%     73.77351       76.81837       Skewness       .1865338
+99%     76.81837        84.7943       Kurtosis       2.266521
+
+. post_n `N' "B" "OOP median (B1 sample)" r(p50)
+
+. egen rk_oop = rank(oop) if !missing(res_le), field
+(3 missing values generated)
+
+. summ rk_oop if iso3 == "BGD"
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+      rk_oop |          1           5           .          5          5
+
+. post_n `N' "B" "BGD OOP rank (1=highest)" r(mean)
+
+. 
+. * link with catastrophic spending (Analysis A sample)
+. merge 1:1 iso3 using "$out/crossA.dta", keepusing(cat10) keep(master match) n
+> ogen
+(label reg already defined)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                            20
+        from master                        20  
+        from using                          0  
+
+    Matched                               109  
+    -----------------------------------------
+
+. spearman res_le cat10
+
+ Number of obs =     109
+Spearman's rho =       0.1095
+
+Test of H0: res_le and cat10 are independent
+    Prob > |t| =       0.2572
+
+. post_n `N' "B" "Spearman res_le vs cat10" r(rho)
+
+. post_n `N' "B" "Spearman n" r(N)
+
+. count if res_le > 3 & !missing(res_le) & cat10 < 8
+  12
+
+. post_n `N' "B" "Over-performers (>3y) with cat10 < 8" r(N)
+
+. count if res_le > 3 & !missing(res_le) & cat10 >= 8 & !missing(cat10)
+  14
+
+. post_n `N' "B" "Over-performers (>3y) with cat10 >= 8" r(N)
+
+. 
+. esttab B1 B2 B3 B4 B5 using "$out/tables_B.rtf", replace ///
+>     b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) r2 label ///
+>     title("Analysis B: outcomes and health spending, 2019")
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/tables_B.r
+    > tf not found)
+(output written to C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/outp
+> ut/tables_B.rtf)
+
+. 
+. save "$out/crossB.dta", replace
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/crossB.dta
+    not found)
+file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/crossB.dta
+    saved
+
+. export delimited using "$out/crossB.csv", replace
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/crossB.csv
+    not found)
+file C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/crossB.csv 
+> saved
+
+. 
+. *----------------------------------------------------------------------------
+> --
+. * 4. ANALYSIS C -- WITHIN-COUNTRY PANEL 2000-2019 (two-way FE, clustered SE)
+. *----------------------------------------------------------------------------
+> --
+. use "$in/panel.dta" if inrange(year, 2000, 2019), clear
+(LMIC panel 2000-2023, WDI + WHO GHO)
+
+. encode iso3, gen(cid)
+
+. xtset cid year
+
+Panel variable: cid (strongly balanced)
+ Time variable: year, 2000 to 2019
+         Delta: 1 unit
+
+. gen lnu5      = ln(u5mr)
+
+. gen lnche     = ln(che_ppp)                    // current PPP (as in abstract
+> )
+(118 missing values generated)
+
+. gen lnche_k   = ln(che_gdp/100 * gdp_ppp)      // constant 2021 PPP
+(195 missing values generated)
+
+. gen lngdp     = ln(gdp_ppp)
+(141 missing values generated)
+
+. label var lnche   "ln CHE pc (current PPP)"
+
+. label var lnche_k "ln CHE pc (constant PPP)"
+
+. 
+. eststo clear
+
+. eststo C1: reghdfe lnu5 lnche, absorb(cid year) vce(cluster cid)
+(dropped 1 singleton observations)
+(MWFE estimator converged in 5 iterations)
+
+HDFE Linear regression                            Number of obs   =      2,501
+Absorbing 2 HDFE groups                           F(   1,    127) =       8.85
+Statistics robust to heteroskedasticity           Prob > F        =     0.0035
+                                                  R-squared       =     0.9743
+                                                  Adj R-squared   =     0.9727
+                                                  Within R-sq.    =     0.0431
+Number of clusters (cid)     =        128         Root MSE        =     0.1383
+
+                                  (Std. err. adjusted for 128 clusters in cid)
+------------------------------------------------------------------------------
+             |               Robust
+        lnu5 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       lnche |  -.1330392   .0447276    -2.97   0.004     -.221547   -.0445315
+       _cons |   4.373465   .2447165    17.87   0.000     3.889216    4.857715
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+         cid |       128         128           0    *|
+        year |        20           1          19     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. post_b `R' "C" "C1 lnU5 ~ lnche (TWFE)" lnche
+
+. post_n `N' "C" "C1 countries" e(N_clust)
+
+. eststo C2: reghdfe lnu5 lnche lngdp, absorb(cid year) vce(cluster cid)
+(MWFE estimator converged in 4 iterations)
+
+HDFE Linear regression                            Number of obs   =      2,425
+Absorbing 2 HDFE groups                           F(   2,    123) =      11.50
+Statistics robust to heteroskedasticity           Prob > F        =     0.0000
+                                                  R-squared       =     0.9766
+                                                  Adj R-squared   =     0.9752
+                                                  Within R-sq.    =     0.1519
+Number of clusters (cid)     =        124         Root MSE        =     0.1306
+
+                                  (Std. err. adjusted for 124 clusters in cid)
+------------------------------------------------------------------------------
+             |               Robust
+        lnu5 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       lnche |  -.0162785   .0378124    -0.43   0.668    -.0911257    .0585688
+       lngdp |  -.3978925   .0886958    -4.49   0.000    -.5734604   -.2223247
+       _cons |   7.218352   .7478289     9.65   0.000      5.73807    8.698633
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+         cid |       124         124           0    *|
+        year |        20           1          19     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. post_b `R' "C" "C2 C1 + lngdp" lnche
+
+. post_b `R' "C" "C2 C1 + lngdp" lngdp
+
+. post_n `N' "C" "C2 countries" e(N_clust)
+
+. eststo C3: reghdfe uhc oop, absorb(cid year) vce(cluster cid)
+(MWFE estimator converged in 5 iterations)
+
+HDFE Linear regression                            Number of obs   =      2,503
+Absorbing 2 HDFE groups                           F(   1,    128) =      10.55
+Statistics robust to heteroskedasticity           Prob > F        =     0.0015
+                                                  R-squared       =     0.9681
+                                                  Adj R-squared   =     0.9661
+                                                  Within R-sq.    =     0.0267
+Number of clusters (cid)     =        129         Root MSE        =     3.2591
+
+                                  (Std. err. adjusted for 129 clusters in cid)
+------------------------------------------------------------------------------
+             |               Robust
+         uhc | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |  -.0820562   .0252649    -3.25   0.001    -.1320472   -.0320652
+       _cons |   57.30091   1.010932    56.68   0.000     55.30061    59.30121
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+         cid |       129         129           0    *|
+        year |        20           1          19     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. post_b `R' "C" "C3 UHC ~ oop (TWFE)" oop
+
+. post_n `N' "C" "C3 countries" e(N_clust)
+
+. eststo C4: reghdfe uhc oop lngdp lnche, absorb(cid year) vce(cluster cid)
+(MWFE estimator converged in 4 iterations)
+
+HDFE Linear regression                            Number of obs   =      2,425
+Absorbing 2 HDFE groups                           F(   3,    123) =       3.88
+Statistics robust to heteroskedasticity           Prob > F        =     0.0109
+                                                  R-squared       =     0.9676
+                                                  Adj R-squared   =     0.9656
+                                                  Within R-sq.    =     0.0353
+Number of clusters (cid)     =        124         Root MSE        =     3.2717
+
+                                  (Std. err. adjusted for 124 clusters in cid)
+------------------------------------------------------------------------------
+             |               Robust
+         uhc | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |  -.0772846   .0264862    -2.92   0.004    -.1297123   -.0248568
+       lngdp |    1.54399   2.025848     0.76   0.447    -2.466053    5.554032
+       lnche |   1.132604   .9818097     1.15   0.251     -.810828    3.076036
+       _cons |   37.52903   15.37828     2.44   0.016     7.088666     67.9694
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+         cid |       124         124           0    *|
+        year |        20           1          19     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. post_b `R' "C" "C4 C3 + lngdp + lnche" oop
+
+. eststo C5: reghdfe uhc oop if inlist(year,2000,2005,2010,2015,2017,2019), ///
+>     absorb(cid year) vce(cluster cid)
+(dropped 1 singleton observations)
+(MWFE estimator converged in 4 iterations)
+
+HDFE Linear regression                            Number of obs   =        753
+Absorbing 2 HDFE groups                           F(   1,    127) =       9.50
+Statistics robust to heteroskedasticity           Prob > F        =     0.0025
+                                                  R-squared       =     0.9627
+                                                  Adj R-squared   =     0.9547
+                                                  Within R-sq.    =     0.0313
+Number of clusters (cid)     =        128         Root MSE        =     3.7293
+
+                                  (Std. err. adjusted for 128 clusters in cid)
+------------------------------------------------------------------------------
+             |               Robust
+         uhc | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         oop |  -.0904319   .0293326    -3.08   0.003    -.1484758    -.032388
+       _cons |   58.61396   1.161029    50.48   0.000      56.3165    60.91143
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+         cid |       128         128           0    *|
+        year |         6           1           5     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. post_b `R' "C" "C5 C3 reference years only" oop
+
+. eststo C6: reghdfe lnu5 L.lnche_k lngdp L.oop, absorb(cid year) vce(cluster c
+> id)
+(MWFE estimator converged in 4 iterations)
+
+HDFE Linear regression                            Number of obs   =      2,301
+Absorbing 2 HDFE groups                           F(   3,    123) =       8.86
+Statistics robust to heteroskedasticity           Prob > F        =     0.0000
+                                                  R-squared       =     0.9784
+                                                  Adj R-squared   =     0.9769
+                                                  Within R-sq.    =     0.1623
+Number of clusters (cid)     =        124         Root MSE        =     0.1253
+
+                                  (Std. err. adjusted for 124 clusters in cid)
+------------------------------------------------------------------------------
+             |               Robust
+        lnu5 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     lnche_k |
+         L1. |  -.0471127   .0390245    -1.21   0.230    -.1243593    .0301339
+             |
+       lngdp |  -.3778471   .0887031    -4.26   0.000    -.5534294   -.2022647
+             |
+         oop |
+         L1. |    .002372   .0011608     2.04   0.043     .0000743    .0046696
+             |
+       _cons |   7.114014   .7656746     9.29   0.000     5.598408    8.629619
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+         cid |       124         124           0    *|
+        year |        19           1          18     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. post_b `R' "C" "C6 recommended: lags, const PPP" L.lnche_k
+
+. post_b `R' "C" "C6 recommended: lags, const PPP" L.oop
+
+. eststo C7: reghdfe lnu5 L.lnche_k lngdp L.oop, absorb(cid year cid#c.year) vc
+> e(cluster cid)
+(MWFE estimator converged in 512 iterations)
+
+HDFE Linear regression                            Number of obs   =      2,301
+Absorbing 3 HDFE groups                           F(   3,    123) =       1.12
+Statistics robust to heteroskedasticity           Prob > F        =     0.3442
+                                                  R-squared       =     0.9956
+                                                  Adj R-squared   =     0.9950
+                                                  Within R-sq.    =     0.0103
+Number of clusters (cid)     =        124         Root MSE        =     0.0584
+
+                                  (Std. err. adjusted for 124 clusters in cid)
+------------------------------------------------------------------------------
+             |               Robust
+        lnu5 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     lnche_k |
+         L1. |  -.0270481   .0192282    -1.41   0.162    -.0651091    .0110129
+             |
+       lngdp |  -.0645015   .0546282    -1.18   0.240    -.1726347    .0436317
+             |
+         oop |
+         L1. |   .0001082   .0003495     0.31   0.757    -.0005836    .0007999
+             |
+       _cons |   4.342856   .4988119     8.71   0.000     3.355488    5.330224
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+         cid |       124         124           0    *|
+        year |        19           1          18     |
+  cid#c.year |       124           0         124    ?|
+-----------------------------------------------------+
+? = number of redundant parameters may be higher
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. post_b `R' "C" "C7 C6 + country trends" L.lnche_k
+
+. eststo C8: reghdfe lnu5 L3.lnche_k lngdp L3.oop, absorb(cid year) vce(cluster
+>  cid)
+(MWFE estimator converged in 4 iterations)
+
+HDFE Linear regression                            Number of obs   =      2,053
+Absorbing 2 HDFE groups                           F(   3,    123) =       8.25
+Statistics robust to heteroskedasticity           Prob > F        =     0.0000
+                                                  R-squared       =     0.9813
+                                                  Adj R-squared   =     0.9799
+                                                  Within R-sq.    =     0.1568
+Number of clusters (cid)     =        124         Root MSE        =     0.1154
+
+                                  (Std. err. adjusted for 124 clusters in cid)
+------------------------------------------------------------------------------
+             |               Robust
+        lnu5 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     lnche_k |
+         L3. |  -.0723284    .034219    -2.11   0.037    -.1400629   -.0045939
+             |
+       lngdp |  -.3437814   .0949412    -3.62   0.000    -.5317116   -.1558512
+             |
+         oop |
+         L3. |    .002292   .0011202     2.05   0.043     .0000746    .0045094
+             |
+       _cons |   6.929978     .83292     8.32   0.000     5.281264    8.578692
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+         cid |       124         124           0    *|
+        year |        17           1          16     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. post_b `R' "C" "C8 3-year lags" L3.lnche_k
+
+. eststo C9: reghdfe le_who lnche lngdp, absorb(cid year) vce(cluster cid)
+(MWFE estimator converged in 4 iterations)
+
+HDFE Linear regression                            Number of obs   =      2,365
+Absorbing 2 HDFE groups                           F(   2,    120) =       2.43
+Statistics robust to heteroskedasticity           Prob > F        =     0.0926
+                                                  R-squared       =     0.9525
+                                                  Adj R-squared   =     0.9495
+                                                  Within R-sq.    =     0.0304
+Number of clusters (cid)     =        121         Root MSE        =     1.7185
+
+                                  (Std. err. adjusted for 121 clusters in cid)
+------------------------------------------------------------------------------
+             |               Robust
+      le_who | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       lnche |  -.0510663   .5162608    -0.10   0.921    -1.073227    .9710942
+       lngdp |   2.301838   1.074513     2.14   0.034     .1743763      4.4293
+       _cons |   46.97451   9.037665     5.20   0.000     29.08057    64.86846
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+         cid |       121         121           0    *|
+        year |        20           1          19     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. post_b `R' "C" "C9 LE ~ lnche + lngdp" lnche
+
+. * first differences
+. reg D.lnu5 D.lnche_k D.lngdp i.year, vce(cluster cid)
+
+Linear regression                               Number of obs     =      2,301
+                                                F(20, 123)        =       5.98
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.0339
+                                                Root MSE          =     .06433
+
+                                  (Std. err. adjusted for 124 clusters in cid)
+------------------------------------------------------------------------------
+             |               Robust
+      D.lnu5 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     lnche_k |
+         D1. |  -.0113718   .0100274    -1.13   0.259    -.0312205    .0084769
+             |
+       lngdp |
+         D1. |  -.1684132   .0425041    -3.96   0.000    -.2525474   -.0842789
+             |
+        year |
+       2002  |  -.0066086   .0073371    -0.90   0.370     -.021132    .0079148
+       2003  |   -.003558   .0041522    -0.86   0.393     -.011777    .0046609
+       2004  |   .0088768   .0073237     1.21   0.228      -.00562    .0233735
+       2005  |  -.0108773   .0073335    -1.48   0.141    -.0253934    .0036389
+       2006  |  -.0027098   .0045448    -0.60   0.552     -.011706    .0062864
+       2007  |   -.000636    .004419    -0.14   0.886    -.0093832    .0081112
+       2008  |   .0017594    .005467     0.32   0.748    -.0090622     .012581
+       2009  |   .0084522   .0138202     0.61   0.542    -.0189041    .0358084
+       2010  |  -.0132733   .0130994    -1.01   0.313    -.0392028    .0126562
+       2011  |    -.00369   .0070899    -0.52   0.604     -.017724     .010344
+       2012  |   .0032093   .0062023     0.52   0.606    -.0090678    .0154863
+       2013  |   .0037843   .0046075     0.82   0.413     -.005336    .0129046
+       2014  |   .0091373   .0054084     1.69   0.094    -.0015684     .019843
+       2015  |   .0019435   .0059996     0.32   0.747    -.0099324    .0138194
+       2016  |   .0058658   .0047828     1.23   0.222    -.0036014     .015333
+       2017  |   .0117019   .0053246     2.20   0.030     .0011621    .0222417
+       2018  |   .0066739   .0051048     1.31   0.194    -.0034307    .0167785
+       2019  |   .0163383   .0079386     2.06   0.042     .0006243    .0320522
+             |
+       _cons |  -.0350667   .0042653    -8.22   0.000    -.0435096   -.0266239
+------------------------------------------------------------------------------
+
+. post_b `R' "C" "C10 first differences" D.lnche_k
+
+. 
+. * balanced-panel count
+. bysort cid: egen nobs = total(!missing(lnu5, lnche))
+
+. quietly levelsof cid if nobs == 20, local(bal)
+
+. post_n `N' "C" "Countries fully observed 2000-2019" `: word count `bal''
+
+. 
+. esttab C1 C2 C3 C4 C5 C6 C7 C8 C9 using "$out/tables_C.rtf", replace ///
+>     b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) label ///
+>     title("Analysis C: within-country panel, 2000-2019")
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/tables_C.r
+    > tf not found)
+(output written to C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/outp
+> ut/tables_C.rtf)
+
+. 
+. *----------------------------------------------------------------------------
+> --
+. * 5. BANGLADESH AND SOUTH ASIA
+. *----------------------------------------------------------------------------
+> --
+. use "$in/panel.dta" if iso3 == "BGD", clear
+(LMIC panel 2000-2023, WDI + WHO GHO)
+
+. export delimited iso3 year oop gov ext che_ppp gdp_ppp le_who le_wb u5mr uhc 
+> ///
+>     using "$out/bgd_trends.csv", replace
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/bgd_trends
+    > .csv not found)
+file C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/bgd_trends.
+> csv saved
+
+. 
+. use "$in/fp_surveys.dta" if inlist(iso3,"BGD","IND","NPL","PAK","BTN","LKA"),
+>  clear
+(Financial protection survey points, national totals)
+
+. export delimited using "$out/south_asia_surveys.csv", replace
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/south_asia
+    > _surveys.csv not found)
+file C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/south_asia_
+> surveys.csv saved
+
+. 
+. use "$out/crossB.dta" if inlist(iso3,"BGD","IND","NPL","PAK","BTN","LKA"), cl
+> ear
+(LMIC panel 2000-2023, WDI + WHO GHO)
+
+. keep iso3 country le_who u5mr che_ppp oop uhc res_le res_le_gdp res_u5
+
+. export delimited using "$out/south_asia.csv", replace
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/south_asia
+    > .csv not found)
+file C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/south_asia.
+> csv saved
+
+. foreach c in BGD IND NPL PAK BTN LKA {
+  2.     foreach v in le_who u5mr che_ppp oop uhc res_le res_le_gdp {
+  3.         summ `v' if iso3 == "`c'", meanonly
+  4.         post_n `N' "BD" "`c' `v' 2019" r(mean)
+  5.     }
+  6. }
+
+. 
+. *----------------------------------------------------------------------------
+> --
+. * 6. EXPORT
+. *----------------------------------------------------------------------------
+> --
+. postclose `R'
+
+. postclose `N'
+
+. use "$out/results_estimates.dta", clear
+
+. gen lo95 = b - 1.96*se
+
+. gen hi95 = b + 1.96*se
+
+. export delimited using "$out/results_estimates.csv", replace
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_es
+    > timates.csv not found)
+file C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_est
+> imates.csv saved
+
+. export excel using "$out/results_estimates.xlsx", firstrow(variables) replace
+file C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_est
+> imates.xlsx saved
+
+. list, sep(0) noobs abbrev(24)
+
+  +----------------------------------------------------------------------------
+--------------------------------------------------------------+
+  | section                               model         term            b      
+>     se           p      n          r2        lo95        hi95 |
+  |----------------------------------------------------------------------------
+--------------------------------------------------------------|
+  |       A                      A1 cat10 ~ oop          oop    .16480306   .02
+> 637096   8.565e-09    109   .19318316     .113116    .2164901 |
+  |       A           A2 cat10 ~ oop + controls          oop    .16024364   .02
+> 688949   3.989e-08    107   .29855276    .1075402    .2129471 |
+  |       A           A2 cat10 ~ oop + controls        lngdp    2.4318503     1
+> .64002   .14133171    107   .29855276    -.782589    5.646289 |
+  |       A           A2 cat10 ~ oop + controls          uhc   -.05633243   .09
+> 816897   .56739658    107   .29855276   -.2487436    .1360787 |
+  |       A           A3 A2 + survey-year trend          oop    .15422676   .02
+> 662619   8.585e-08    107   .31951314    .1020394    .2064141 |
+  |       A                      A4 cat25 ~ oop          oop    .03749849   .01
+> 005001   .00030698    109   .09807234    .0178005    .0571965 |
+  |       A           A5 cat25 ~ oop + controls          oop    .03614599   .00
+> 950435   .00024856    107   .18098233    .0175175    .0547745 |
+  |       A                      A6 cat10 ~ gov          gov   -.07371771   .03
+> 003302   .01571816    109   .03944598   -.1325824    -.014853 |
+  |       A           A7 cat10 ~ gov + controls          gov   -.20188643   .03
+> 398228   4.332e-08    107   .30225943   -.2684917   -.1352811 |
+  |       A              A8 cat10 ~ uhc + lngdp          uhc   -.06875644   .09
+> 715573    .4807188    107   .04474442   -.2591817    .1216688 |
+  |       A                  R1 A2 with HC3 SEs          oop    .16024364   .02
+> 858182   1.905e-07    107   .29855276    .1042233     .216264 |
+  |       A              R2 A2 with OOP in 2019        oop19    .16135871   .02
+> 723021   4.638e-08    107   .30454068    .1079875    .2147299 |
+  |       A   R3 income-group instead of region          oop    .17614542    .0
+> 283384   1.157e-08    107   .31605429    .1206022    .2316887 |
+  |       A                    R4 surveys 2012+          oop    .16951177   .02
+> 980196   1.654e-07     97   .30731953    .1110999    .2279236 |
+  |       A              R5 drop Cook's D > 4/n          oop    .13152242   .02
+> 273426   1.090e-07     97   .36860873    .0869633    .1760816 |
+  |       A             R6 fractional logit AME          oop    .00175214   .00
+> 026568   4.256e-11    107           .    .0012314    .0022729 |
+  |       A                    R7 ln(cat10+0.5)          oop    .02363568   .00
+> 392598   3.032e-08    107   .38956882    .0159408    .0313306 |
+  |       A                     A9 fh2025 ~ oop          oop    .26649983   .04
+> 511536   3.811e-08    114   .18992403    .1780737    .3549259 |
+  |       A         A10 fh2025 ~ oop + controls          oop    .29795203   .04
+> 224562   2.075e-10    112   .56501882    .2151506    .3807535 |
+  |       B                       B1 LE ~ lnche        lnche    4.3581631   .39
+> 264082   2.662e-20    126   .48175151    3.588587    5.127739 |
+  |       B                   B2 lnU5MR ~ lnche        lnche   -.62688434    .0
+> 451771   3.240e-27    129   .60119685   -.7154315   -.5383372 |
+  |       B               B3 LE ~ lnche + lngdp        lnche    1.2674468   1.2
+> 249906   .30294427    121   .54522277   -1.133535    3.668428 |
+  |       B               B3 LE ~ lnche + lngdp        lngdp    4.2200025    1.
+> 581329    .0086877    121   .54522277    1.120598    7.319407 |
+  |       B              B4 LE (UN WPP) ~ lnche        lnche    4.6491419   .47
+> 447583   3.168e-17    129   .48005242    3.719169    5.579114 |
+  |       B                        B5 quadratic       lnche2   -.32877837   .34
+> 412355   .34124542    126   .48444483    -1.00326    .3457038 |
+  |       B                   B6 residual ~ oop          oop     .0115965   .02
+> 562442   .65165874    126   .00255529   -.0386274    .0618204 |
+  |       C              C1 lnU5 ~ lnche (TWFE)        lnche   -.13303922   .04
+> 472755   .00351402   2501    .9742932   -.2207052   -.0453732 |
+  |       C                       C2 C1 + lngdp        lnche   -.01627846   .03
+> 781236   .66758081   2425   .97664603   -.0903907    .0578338 |
+  |       C                       C2 C1 + lngdp        lngdp   -.39789254   .08
+> 869576   .00001643   2425   .97664603   -.5717362   -.2240489 |
+  |       C                 C3 UHC ~ oop (TWFE)          oop   -.08205624   .02
+> 526494   .00148511   2503   .96814838   -.1315755    -.032537 |
+  |       C               C4 C3 + lngdp + lnche          oop   -.07728458   .02
+> 648616   .00419064   2425   .96763121   -.1291974   -.0253717 |
+  |       C          C5 C3 reference years only          oop   -.09043189   .02
+> 933257   .00251433    753   .96273608   -.1479237     -.03294 |
+  |       C     C6 recommended: lags, const PPP    L.lnche_k    -.0471127   .03
+> 902451   .22964878   2301   .97836303   -.1236007    .0293753 |
+  |       C     C6 recommended: lags, const PPP        L.oop    .00237197   .00
+> 116075   .04314056   2301   .97836303    .0000969     .004647 |
+  |       C              C7 C6 + country trends    L.lnche_k   -.02704811   .01
+> 922817   .16204034   2301   .99556834   -.0647353    .0106391 |
+  |       C                      C8 3-year lags   L3.lnche_k   -.07232841   .03
+> 421904   .03656187   2053   .98131066   -.1393977   -.0052591 |
+  |       C               C9 LE ~ lnche + lngdp        lnche   -.05106633   .51
+> 626082   .92137021   2365   .95254606   -1.062937    .9608049 |
+  |       C               C10 first differences    D.lnche_k   -.01137181   .01
+> 002743   .25897053   2301   .03388236   -.0310256     .008282 |
+  +----------------------------------------------------------------------------
+--------------------------------------------------------------+
+
+. use "$out/results_numeric.dta", clear
+
+. export delimited using "$out/results_numeric.csv", replace
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_nu
+    > meric.csv not found)
+file C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_num
+> eric.csv saved
+
+. list, sep(0) noobs abbrev(40)
+
+  +-----------------------------------------------------------------+
+  | section                                       item        value |
+  |-----------------------------------------------------------------|
+  |       S                             LMICs (FY2027)          131 |
+  |       S                                  LMICs LIC           25 |
+  |       S                                  LMICs LMC           47 |
+  |       S                                  LMICs UMC           59 |
+  |       A           Countries with survey since 2005          109 |
+  |       A                         Survey year median         2017 |
+  |       A                            Survey year min         2005 |
+  |       A                            Survey year max         2021 |
+  |       A                               cat10 median         8.18 |
+  |       A                                  cat10 p25          4.3 |
+  |       A                                  cat10 p75        11.81 |
+  |       A                               cat25 median         1.38 |
+  |       A                Countries with all controls          107 |
+  |       A                        Pearson r cat10-oop    .43952606 |
+  |       A                     Spearman rho cat10-oop    .49923662 |
+  |       A                          Pearson r oop-gov   -.62734299 |
+  |       A                   BGD rank cat10 (1=worst)            7 |
+  |       A                         BGD cat10 / median    2.9853301 |
+  |       A   FH2025: countries with survey since 2005          115 |
+  |       A                             FH2025: median    23.515476 |
+  |       A                 FH2025: survey year median         2019 |
+  |       A                 FH2025: BGD rank (1=worst)            8 |
+  |       B               Countries with spending 2019          129 |
+  |       B                                      B1 R2    .48175151 |
+  |       B                      B1 years per doubling    3.0208484 |
+  |       B                                       B1 n          126 |
+  |       B                                      B2 R2    .60119685 |
+  |       B                            BGD rank res_le            2 |
+  |       B                                 BGD res_le    8.1848133 |
+  |       B                        BGD rank res_le_gdp            7 |
+  |       B                             BGD res_le_gdp    5.5805442 |
+  |       B                         BGD rank res_le_wb            2 |
+  |       B                              BGD res_le_wb    8.6846458 |
+  |       B          BGD rank lnU5MR residual (1=best)           21 |
+  |       B                                 LKA res_le    5.7970897 |
+  |       B                     OOP median (B1 sample)    37.465767 |
+  |       B                   BGD OOP rank (1=highest)            5 |
+  |       B                   Spearman res_le vs cat10    .10946286 |
+  |       B                                 Spearman n          109 |
+  |       B       Over-performers (>3y) with cat10 < 8           12 |
+  |       B      Over-performers (>3y) with cat10 >= 8           14 |
+  |       C                               C1 countries          128 |
+  |       C                               C2 countries          124 |
+  |       C                               C3 countries          129 |
+  |       C         Countries fully observed 2000-2019          121 |
+  |      BD                            BGD le_who 2019         73.4 |
+  |      BD                              BGD u5mr 2019         32.3 |
+  |      BD                           BGD che_ppp 2019    128.62998 |
+  |      BD                               BGD oop 2019    76.470383 |
+  |      BD                               BGD uhc 2019           50 |
+  |      BD                            BGD res_le 2019    8.1848133 |
+  |      BD                        BGD res_le_gdp 2019    5.5805442 |
+  |      BD                            IND le_who 2019         70.5 |
+  |      BD                              IND u5mr 2019         34.9 |
+  |      BD                           IND che_ppp 2019    211.16662 |
+  |      BD                               IND oop 2019    52.004211 |
+  |      BD                               IND uhc 2019           65 |
+  |      BD                            IND res_le 2019    3.1244392 |
+  |      BD                        IND res_le_gdp 2019    1.5502522 |
+  |      BD                            NPL le_who 2019         71.1 |
+  |      BD                              NPL u5mr 2019           31 |
+  |      BD                           NPL che_ppp 2019    189.39747 |
+  |      BD                               NPL oop 2019    57.913132 |
+  |      BD                               NPL uhc 2019           51 |
+  |      BD                            NPL res_le 2019     4.198605 |
+  |      BD                        NPL res_le_gdp 2019    4.4564379 |
+  |      BD                            PAK le_who 2019         66.9 |
+  |      BD                              PAK u5mr 2019         65.8 |
+  |      BD                           PAK che_ppp 2019     143.4372 |
+  |      BD                               PAK oop 2019    56.083012 |
+  |      BD                               PAK uhc 2019           52 |
+  |      BD                            PAK res_le 2019    1.2099597 |
+  |      BD                        PAK res_le_gdp 2019    .02107915 |
+  |      BD                            BTN le_who 2019         74.6 |
+  |      BD                              BTN u5mr 2019         22.7 |
+  |      BD                           BTN che_ppp 2019    417.63123 |
+  |      BD                               BTN oop 2019     17.79043 |
+  |      BD                               BTN uhc 2019           66 |
+  |      BD                            BTN res_le 2019    4.2523832 |
+  |      BD                        BTN res_le_gdp 2019    2.1001153 |
+  |      BD                            LKA le_who 2019           77 |
+  |      BD                              LKA u5mr 2019          7.2 |
+  |      BD                           LKA che_ppp 2019    508.18713 |
+  |      BD                               LKA oop 2019    44.297466 |
+  |      BD                               LKA uhc 2019           70 |
+  |      BD                            LKA res_le 2019    5.7970897 |
+  |      BD                        LKA res_le_gdp 2019    4.2275969 |
+  +-----------------------------------------------------------------+
+
+. 
+. log close
+      name:  <unnamed>
+       log:  C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/ana
+> lysis_log.smcl
+  log type:  smcl
+ closed on:  20 Nov 2026, 19:01:58
+-------------------------------------------------------------------------------

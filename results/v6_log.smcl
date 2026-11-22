@@ -1,0 +1,670 @@
+{smcl}
+{txt}{sf}{ul off}{.-}
+      name:  {res}<unnamed>
+       {txt}log:  {res}C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/v6_log.smcl
+  {txt}log type:  {res}smcl
+ {txt}opened on:  {res}20 Nov 2026, 19:03:07
+{txt}
+{com}. tempname V
+{txt}
+{com}. postfile `V' str60 key double value using "$out/results_v6.dta", replace
+{txt}{p 0 4 2}
+(file {bf}
+C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_v6.dta{rm}
+not found)
+{p_end}
+
+{com}. cap program drop put
+{txt}
+{com}. program define put
+{txt}  1{com}.     gettoken h 0 : 0
+{txt}  2{com}.     gettoken key 0 : 0
+{txt}  3{com}.     post `h' ("`key'") (`0')
+{txt}  4{com}. end
+{txt}
+{com}. cap program drop putb
+{txt}
+{com}. program define putb
+{txt}  1{com}.     args h key term
+{txt}  2{com}.     tempname rt
+{txt}  3{com}.     matrix `rt' = r(table)
+{txt}  4{com}.     local c = colnumb(`rt', "`term'")
+{txt}  5{com}.     post `h' ("`key'.b")  (`rt'[1,`c'])
+{txt}  6{com}.     post `h' ("`key'.p")  (`rt'[4,`c'])
+{txt}  7{com}.     post `h' ("`key'.lo") (`rt'[5,`c'])
+{txt}  8{com}.     post `h' ("`key'.hi") (`rt'[6,`c'])
+{txt}  9{com}.     post `h' ("`key'.n")  (e(N))
+{txt} 10{com}. end
+{txt}
+{com}. * nearestk v k : attach the panel_v4 value of v from the year nearest svy_year,
+. * within +/- k years (exact year first, then the earlier year)
+. cap program drop nearestk
+{txt}
+{com}. program define nearestk
+{txt}  1{com}.     args v k
+{txt}  2{com}.     tempvar row
+{txt}  3{com}.     gen long `row' = _n
+{txt}  4{com}.     preserve
+{txt}  5{com}.         use iso3 year `v' using "$out/panel_v4.dta", clear
+{txt}  6{com}.         drop if missing(`v')
+{txt}  7{com}.         rename year y_`v'
+{txt}  8{com}.         tempfile t
+{txt}  9{com}.         save `t'
+{txt} 10{com}.     restore
+{txt} 11{com}.     capture drop `v'
+{txt} 12{com}.     joinby iso3 using `t', unmatched(master)
+{txt} 13{com}.     gen double d_`v' = abs(y_`v' - svy_year)
+{txt} 14{com}.     bysort `row' (d_`v' y_`v'): keep if _n == 1
+{txt} 15{com}.     replace `v' = . if missing(d_`v') | d_`v' > `k'
+{txt} 16{com}.     gen byte dist_`v' = d_`v' if !missing(`v')
+{txt} 17{com}.     drop _merge d_`v' y_`v' `row'
+{txt} 18{com}. end
+{txt}
+{com}. 
+. 
+. use "$in/countries_fy2027.dta", clear
+{txt}
+{com}. keep iso3 country region income
+{txt}
+{com}. encode region, gen(reg)
+{txt}
+{com}. tempfile L
+{txt}
+{com}. save `L'
+{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000001.tmp{rm}
+saved
+as .dta format
+{p_end}
+
+{com}. 
+. cap program drop build_G
+{txt}
+{com}. program define build_G
+{txt}  1{com}.     args k L
+{txt}  2{com}.     import delimited using "$in/$hard", clear varnames(1) case(lower) stringcols(_all)
+{txt}  3{com}.     keep spatialdim timedim dim1 dim2 numericvalue
+{txt}  4{com}.     destring timedim numericvalue, replace
+{txt}  5{com}.     rename spatialdim iso3
+{txt}  6{com}.     rename timedim svy_year
+{txt}  7{com}.     merge m:1 iso3 using `L', keep(match) nogen keepusing(iso3)
+{txt}  8{com}.     keep if svy_year >= 2005
+{txt}  9{com}.     gen g = ""
+{txt} 10{com}.     replace g = "q1"     if dim1 == "WEALTHQUINTILE_WQ1"
+{txt} 11{com}.     replace g = "q5"     if dim1 == "WEALTHQUINTILE_WQ5"
+{txt} 12{com}.     replace g = "old"    if dim1 == "HOUSEHOLD_COMP_BY_AGE_HH_COMP_ONLY_OLDER_ADULTS"
+{txt} 13{com}.     replace g = "adults" if dim1 == "HOUSEHOLD_COMP_BY_AGE_HH_COMP_ADULTS"
+{txt} 14{com}.     replace g = "rur"    if dim1 == "RESIDENCEAREATYPE_RUR"
+{txt} 15{com}.     replace g = "urb"    if dim1 == "RESIDENCEAREATYPE_URB"
+{txt} 16{com}.     replace g = "tot"    if dim1 == "FINANCIALHARDSHIPCOMPONENT_COMPONENT_TOTAL"
+{txt} 17{com}.     keep if g != ""
+{txt} 18{com}.     collapse (mean) numericvalue, by(iso3 svy_year g)
+{txt} 19{com}.     reshape wide numericvalue, i(iso3 svy_year) j(g) string
+{txt} 20{com}.     rename numericvalue* *
+{txt} 21{com}.     gen gap_q   = q1 - q5
+{txt} 22{com}.     gen gap_old = old - adults
+{txt} 23{com}.     gen gap_rur = rur - urb
+{txt} 24{com}.     merge m:1 iso3 using `L', keep(match) nogen
+{txt} 25{com}.     foreach v in oop gdp_ppp uhc pov_spl pov_ipl pop65 {c -(}
+{txt} 26{com}.         nearestk `v' `k'
+{txt} 27{com}.     {c )-}
+{txt} 28{com}.     gen lngdp = ln(gdp_ppp)
+{txt} 29{com}. end
+{txt}
+{com}. 
+. 
+. build_G 2 `L'
+{res}{txt}(encoding automatically selected: ISO-8859-1)
+{text}(25 vars, 16,241 obs)
+timedim: all characters numeric; {res}replaced {txt}as {res}int
+{txt}numericvalue: all characters numeric; {res}replaced {txt}as {res}double
+{txt}(3 missing values generated)
+{res}
+{txt}{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}               0
+{txt}{col 5}Matched{col 30}{res}          11,440{txt}  
+{col 5}{hline 41}
+(2,372 observations deleted)
+(9,068 missing values generated)
+variable {bf}{res}g{sf}{txt} was {bf}{res}str1{sf}{txt} now {bf}{res}str2{sf}
+{txt}(552 real changes made)
+(552 real changes made)
+variable {bf}{res}g{sf}{txt} was {bf}{res}str2{sf}{txt} now {bf}{res}str3{sf}
+{txt}(316 real changes made)
+variable {bf}{res}g{sf}{txt} was {bf}{res}str3{sf}{txt} now {bf}{res}str6{sf}
+{txt}(332 real changes made)
+(446 real changes made)
+(446 real changes made)
+(556 real changes made)
+(5,868 observations deleted)
+{res}{txt}(j = adults old q1 q5 rur tot urb)
+
+Data{col 36}Long{col 43}->{col 48}Wide
+{hline 77}
+Number of observations     {res}       3,200   {txt}->   {res}556         
+{txt}Number of variables        {res}           4   {txt}->   {res}9           
+{txt}j variable (7 values)                 {res}g   {txt}->   (dropped)
+xij variables:
+                           {res}numericvalue   {txt}->   {res}numericvalueadults numericvalueold ... numericvalueurb
+{txt}{hline 77}
+{res}{txt}(4 missing values generated)
+(259 missing values generated)
+(110 missing values generated)
+{res}
+{txt}{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}               0
+{txt}{col 5}Matched{col 30}{res}             556{txt}  
+{col 5}{hline 41}
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(127 observations deleted)
+{res}{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000003.tmp{rm}
+saved
+as .dta format
+{p_end}
+(6 missing values generated)
+(12,406 observations deleted)
+(5 real changes made, 5 to missing)
+(11 missing values generated)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(166 observations deleted)
+{res}{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000003.tmp{rm}
+saved
+as .dta format
+{p_end}
+(4 missing values generated)
+(12,621 observations deleted)
+(1 real change made, 1 to missing)
+(5 missing values generated)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(24 observations deleted)
+{res}{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000003.tmp{rm}
+saved
+as .dta format
+{p_end}
+(6 missing values generated)
+(12,650 observations deleted)
+(0 real changes made)
+(6 missing values generated)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(2,193 observations deleted)
+{res}{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000003.tmp{rm}
+saved
+as .dta format
+{p_end}
+(13 missing values generated)
+(6,523 observations deleted)
+(27 real changes made, 27 to missing)
+(40 missing values generated)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(2,193 observations deleted)
+{res}{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000003.tmp{rm}
+saved
+as .dta format
+{p_end}
+(13 missing values generated)
+(6,523 observations deleted)
+(27 real changes made, 27 to missing)
+(40 missing values generated)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(0 observations deleted)
+{res}{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000003.tmp{rm}
+saved
+as .dta format
+{p_end}
+(12,788 observations deleted)
+(0 real changes made)
+(5 missing values generated)
+
+{com}. keep if !missing(gap_q)
+{txt}(4 observations deleted)
+
+{com}. bysort iso3 (svy_year): keep if _n == _N
+{txt}(438 observations deleted)
+
+{com}. 
+. * check: main absolute-gap model reproduces results_v4 (pov.gap_q.spl)
+. regress gap_q oop lngdp pov_spl, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}       102
+                                                {txt}F(3, 98)          =  {res}    11.35
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.2458
+                                                {txt}Root MSE          =    {res} 21.515
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       gap_q{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2}  .603614{col 26}{space 2} .1143589{col 37}{space 1}    5.28{col 46}{space 3}0.000{col 54}{space 4} .3766725{col 67}{space 3} .8305555
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2}-1.067978{col 26}{space 2} 3.957942{col 37}{space 1}   -0.27{col 46}{space 3}0.788{col 54}{space 4}-8.922386{col 67}{space 3}  6.78643
+{txt}{space 5}pov_spl {c |}{col 14}{res}{space 2}  .036012{col 26}{space 2} .2213887{col 37}{space 1}    0.16{col 46}{space 3}0.871{col 54}{space 4}-.4033266{col 67}{space 3} .4753507
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}   44.217{col 26}{space 2} 42.77876{col 37}{space 1}    1.03{col 46}{space 3}0.304{col 54}{space 4}-40.67606{col 67}{space 3}   129.11
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "check.abs_spl" oop
+{txt}
+{com}. local chk_abs = _b[oop]
+{txt}
+{com}. regress gap_q oop lngdp pov_spl i.reg, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}       102
+                                                {txt}F(8, 93)          =  {res}    10.02
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.3617
+                                                {txt}Root MSE          =    {res} 20.318
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       gap_q{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2}   .64855{col 26}{space 2} .1184255{col 37}{space 1}    5.48{col 46}{space 3}0.000{col 54}{space 4} .4133805{col 67}{space 3} .8837196
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2}  3.20211{col 26}{space 2} 3.814736{col 37}{space 1}    0.84{col 46}{space 3}0.403{col 54}{space 4}-4.373198{col 67}{space 3} 10.77742
+{txt}{space 5}pov_spl {c |}{col 14}{res}{space 2}-.2316502{col 26}{space 2} .2519843{col 37}{space 1}   -0.92{col 46}{space 3}0.360{col 54}{space 4}-.7320412{col 67}{space 3} .2687407
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2}-24.29443{col 26}{space 2} 8.425557{col 37}{space 1}   -2.88{col 46}{space 3}0.005{col 54}{space 4}-41.02591{col 67}{space 3}-7.562939
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2}-6.046787{col 26}{space 2} 8.756433{col 37}{space 1}   -0.69{col 46}{space 3}0.492{col 54}{space 4}-23.43533{col 67}{space 3} 11.34175
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2}-3.117763{col 26}{space 2} 9.533879{col 37}{space 1}   -0.33{col 46}{space 3}0.744{col 54}{space 4}-22.05016{col 67}{space 3} 15.81463
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2}-5.174728{col 26}{space 2} 10.23732{col 37}{space 1}   -0.51{col 46}{space 3}0.614{col 54}{space 4}-25.50403{col 67}{space 3} 15.15457
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2} 9.664883{col 26}{space 2} 8.246345{col 37}{space 1}    1.17{col 46}{space 3}0.244{col 54}{space 4}-6.710723{col 67}{space 3} 26.04049
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}  14.2183{col 26}{space 2} 39.65935{col 37}{space 1}    0.36{col 46}{space 3}0.721{col 54}{space 4}-64.53731{col 67}{space 3}  92.9739
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "check.abs_spl_reg" oop
+{txt}
+{com}. 
+. gen double lnratio = ln(q1/q5) if q5 > 0 & q1 > 0
+{txt}(10 missing values generated)
+
+{com}. gen double lnq1 = ln(q1) if q1 > 0
+{txt}(1 missing value generated)
+
+{com}. gen double lnq5 = ln(q5) if q5 > 0
+{txt}(10 missing values generated)
+
+{com}. count if q5 == 0
+  {res}10
+{txt}
+{com}. put `V' "info.n_q5_zero" r(N)
+{txt}
+{com}. 
+. * a. v4 model (reproduce)
+. regress lnratio oop lngdp, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}       101
+                                                {txt}F(2, 98)          =  {res}     4.57
+                                                {txt}Prob > F          = {res}    0.0127
+                                                {txt}R-squared         = {res}    0.0910
+                                                {txt}Root MSE          =    {res} 1.4602
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     lnratio{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2}  -.02359{col 26}{space 2} .0079279{col 37}{space 1}   -2.98{col 46}{space 3}0.004{col 54}{space 4}-.0393225{col 67}{space 3}-.0078574
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2}-.1788789{col 26}{space 2} .1748007{col 37}{space 1}   -1.02{col 46}{space 3}0.309{col 54}{space 4}-.5257652{col 67}{space 3} .1680074
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 6.145616{col 26}{space 2} 1.691608{col 37}{space 1}    3.63{col 46}{space 3}0.000{col 54}{space 4} 2.788676{col 67}{space 3} 9.502557
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "ratio.v4_oop_gdp" oop
+{txt}
+{com}. local chk_ratio = _b[oop]
+{txt}
+{com}. * b. same controls as the main model
+. regress lnratio oop lngdp pov_spl, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}        94
+                                                {txt}F(3, 90)          =  {res}     2.92
+                                                {txt}Prob > F          = {res}    0.0384
+                                                {txt}R-squared         = {res}    0.0992
+                                                {txt}Root MSE          =    {res} 1.4135
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     lnratio{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2}-.0248079{col 26}{space 2} .0097747{col 37}{space 1}   -2.54{col 46}{space 3}0.013{col 54}{space 4}-.0442271{col 67}{space 3}-.0053888
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2}-.4027798{col 26}{space 2} .3808994{col 37}{space 1}   -1.06{col 46}{space 3}0.293{col 54}{space 4}-1.159503{col 67}{space 3} .3539434
+{txt}{space 5}pov_spl {c |}{col 14}{res}{space 2}-.0097513{col 26}{space 2} .0184771{col 37}{space 1}   -0.53{col 46}{space 3}0.599{col 54}{space 4}-.0464593{col 67}{space 3} .0269568
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 8.595567{col 26}{space 2} 4.193363{col 37}{space 1}    2.05{col 46}{space 3}0.043{col 54}{space 4} .2647196{col 67}{space 3} 16.92641
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "ratio.spl" oop
+{txt}
+{com}. putb `V' "ratio.spl_pov" pov_spl
+{txt}
+{com}. gen byte inR = e(sample)
+{txt}
+{com}. * c. + region effects
+. regress lnratio oop lngdp pov_spl i.reg, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}        94
+                                                {txt}F(8, 85)          =  {res}     1.90
+                                                {txt}Prob > F          = {res}    0.0709
+                                                {txt}R-squared         = {res}    0.1688
+                                                {txt}Root MSE          =    {res} 1.3971
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     lnratio{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2}-.0240283{col 26}{space 2} .0096613{col 37}{space 1}   -2.49{col 46}{space 3}0.015{col 54}{space 4}-.0432377{col 67}{space 3} -.004819
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2}-.2843593{col 26}{space 2} .3706217{col 37}{space 1}   -0.77{col 46}{space 3}0.445{col 54}{space 4}-1.021255{col 67}{space 3}  .452536
+{txt}{space 5}pov_spl {c |}{col 14}{res}{space 2}-.0262053{col 26}{space 2} .0198038{col 37}{space 1}   -1.32{col 46}{space 3}0.189{col 54}{space 4}-.0655805{col 67}{space 3} .0131699
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2}-.4773026{col 26}{space 2} .5259156{col 37}{space 1}   -0.91{col 46}{space 3}0.367{col 54}{space 4}-1.522964{col 67}{space 3} .5683585
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2}-.6375457{col 26}{space 2} .5858321{col 37}{space 1}   -1.09{col 46}{space 3}0.280{col 54}{space 4}-1.802337{col 67}{space 3} .5272454
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2}-.7780093{col 26}{space 2} .5256893{col 37}{space 1}   -1.48{col 46}{space 3}0.143{col 54}{space 4} -1.82322{col 67}{space 3} .2672018
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2}-.8184449{col 26}{space 2} .5567372{col 37}{space 1}   -1.47{col 46}{space 3}0.145{col 54}{space 4}-1.925388{col 67}{space 3} .2884978
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2} .4653039{col 26}{space 2} .5857041{col 37}{space 1}    0.79{col 46}{space 3}0.429{col 54}{space 4}-.6992328{col 67}{space 3} 1.629841
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} 8.149171{col 26}{space 2}   4.0248{col 37}{space 1}    2.02{col 46}{space 3}0.046{col 54}{space 4} .1467898{col 67}{space 3} 16.15155
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "ratio.spl_reg" oop
+{txt}
+{com}. * d. decomposition (same sample as b)
+. regress lnq1 oop lngdp pov_spl if inR, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}        94
+                                                {txt}F(3, 90)          =  {res}     7.28
+                                                {txt}Prob > F          = {res}    0.0002
+                                                {txt}R-squared         = {res}    0.1852
+                                                {txt}Root MSE          =    {res} .47912
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}        lnq1{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .0109132{col 26}{space 2} .0026759{col 37}{space 1}    4.08{col 46}{space 3}0.000{col 54}{space 4}  .005597{col 67}{space 3} .0162294
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2}-.0570237{col 26}{space 2} .0876054{col 37}{space 1}   -0.65{col 46}{space 3}0.517{col 54}{space 4}-.2310672{col 67}{space 3} .1170197
+{txt}{space 5}pov_spl {c |}{col 14}{res}{space 2} -.003406{col 26}{space 2} .0055877{col 37}{space 1}   -0.61{col 46}{space 3}0.544{col 54}{space 4} -.014507{col 67}{space 3}  .007695
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 4.224993{col 26}{space 2} .9751013{col 37}{space 1}    4.33{col 46}{space 3}0.000{col 54}{space 4} 2.287784{col 67}{space 3} 6.162202
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "lnq1.spl" oop
+{txt}
+{com}. regress lnq5 oop lngdp pov_spl if inR, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}        94
+                                                {txt}F(3, 90)          =  {res}     7.92
+                                                {txt}Prob > F          = {res}    0.0001
+                                                {txt}R-squared         = {res}    0.2175
+                                                {txt}Root MSE          =    {res} 1.2689
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}        lnq5{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .0357212{col 26}{space 2} .0083811{col 37}{space 1}    4.26{col 46}{space 3}0.000{col 54}{space 4} .0190707{col 67}{space 3} .0523716
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} .3457561{col 26}{space 2} .3511574{col 37}{space 1}    0.98{col 46}{space 3}0.327{col 54}{space 4}-.3518794{col 67}{space 3} 1.043392
+{txt}{space 5}pov_spl {c |}{col 14}{res}{space 2} .0063453{col 26}{space 2} .0180999{col 37}{space 1}    0.35{col 46}{space 3}0.727{col 54}{space 4}-.0296134{col 67}{space 3}  .042304
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-4.370574{col 26}{space 2} 3.881907{col 37}{space 1}   -1.13{col 46}{space 3}0.263{col 54}{space 4}-12.08266{col 67}{space 3} 3.341512
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "lnq5.spl" oop
+{txt}
+{com}. regress q1 oop lngdp pov_spl if inR, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}        94
+                                                {txt}F(3, 90)          =  {res}    10.58
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.2232
+                                                {txt}Root MSE          =    {res} 20.593
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}          q1{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .5309811{col 26}{space 2} .1125754{col 37}{space 1}    4.72{col 46}{space 3}0.000{col 54}{space 4} .3073305{col 67}{space 3} .7546317
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2}-3.328009{col 26}{space 2} 4.072675{col 37}{space 1}   -0.82{col 46}{space 3}0.416{col 54}{space 4}-11.41909{col 67}{space 3} 4.763071
+{txt}{space 5}pov_spl {c |}{col 14}{res}{space 2}-.1138418{col 26}{space 2} .2361298{col 37}{space 1}   -0.48{col 46}{space 3}0.631{col 54}{space 4}-.5829548{col 67}{space 3} .3552713
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 74.91796{col 26}{space 2} 44.89055{col 37}{space 1}    1.67{col 46}{space 3}0.099{col 54}{space 4}-14.26495{col 67}{space 3} 164.1009
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "q1.spl" oop
+{txt}
+{com}. regress q5 oop lngdp pov_spl if inR, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}        94
+                                                {txt}F(3, 90)          =  {res}     1.87
+                                                {txt}Prob > F          = {res}    0.1401
+                                                {txt}R-squared         = {res}    0.1026
+                                                {txt}Root MSE          =    {res} 3.3601
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}          q5{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .0583876{col 26}{space 2} .0277267{col 37}{space 1}    2.11{col 46}{space 3}0.038{col 54}{space 4} .0033037{col 67}{space 3} .1134715
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} .6451318{col 26}{space 2} .5912741{col 37}{space 1}    1.09{col 46}{space 3}0.278{col 54}{space 4}-.5295373{col 67}{space 3} 1.819801
+{txt}{space 5}pov_spl {c |}{col 14}{res}{space 2} .0072619{col 26}{space 2} .0258006{col 37}{space 1}    0.28{col 46}{space 3}0.779{col 54}{space 4}-.0439955{col 67}{space 3} .0585193
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-5.420536{col 26}{space 2} 6.551351{col 37}{space 1}   -0.83{col 46}{space 3}0.410{col 54}{space 4}-18.43594{col 67}{space 3} 7.594867
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "q5.spl" oop
+{txt}
+{com}. * e. levels in the ratio sample
+. foreach v in q1 q5 {c -(}
+{txt}  2{com}.     quietly summarize `v' if inR, detail
+{txt}  3{com}.     put `V' "level.`v'.mean" r(mean)
+{txt}  4{com}.     put `V' "level.`v'.median" r(p50)
+{txt}  5{com}.     put `V' "level.`v'.min" r(min)
+{txt}  6{com}. {c )-}
+{txt}
+{com}. quietly summarize q5 if inR, detail
+{txt}
+{com}. put `V' "level.q5.p10" r(p10)
+{txt}
+{com}. * f. sensitivity: drop countries with q5 < 1% (labelled sensitivity, not main)
+. regress lnratio oop lngdp pov_spl if q5 >= 1, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}        56
+                                                {txt}F(3, 52)          =  {res}     4.83
+                                                {txt}Prob > F          = {res}    0.0049
+                                                {txt}R-squared         = {res}    0.1136
+                                                {txt}Root MSE          =    {res} .93627
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     lnratio{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .0130274{col 26}{space 2} .0107652{col 37}{space 1}    1.21{col 46}{space 3}0.232{col 54}{space 4}-.0085744{col 67}{space 3} .0346293
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2}-.0392655{col 26}{space 2} .2308722{col 37}{space 1}   -0.17{col 46}{space 3}0.866{col 54}{space 4}-.5025446{col 67}{space 3} .4240135
+{txt}{space 5}pov_spl {c |}{col 14}{res}{space 2} .0155297{col 26}{space 2} .0092036{col 37}{space 1}    1.69{col 46}{space 3}0.098{col 54}{space 4}-.0029387{col 67}{space 3} .0339981
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 2.175125{col 26}{space 2} 2.578442{col 37}{space 1}    0.84{col 46}{space 3}0.403{col 54}{space 4}-2.998898{col 67}{space 3} 7.349148
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "ratio.sens_q5ge1" oop
+{txt}
+{com}. count if inR & q5 < 1
+  {res}38
+{txt}
+{com}. put `V' "ratio.sens_q5ge1.dropped" r(N)
+{txt}
+{com}. 
+. * --- RQ2: 2019 life expectancy on ln spending with ln GDP (05, Design B) -------
+. use "$in/panel.dta", clear
+{txt}(LMIC panel 2000-2023, WDI + WHO GHO)
+
+{com}. keep if year == 2019
+{txt}(3,013 observations deleted)
+
+{com}. merge m:1 iso3 using `L', keep(match) nogen
+{res}
+{txt}{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}               0
+{txt}{col 5}Matched{col 30}{res}             131{txt}  
+{col 5}{hline 41}
+
+{com}. gen lnche = ln(che_ppp)
+{txt}(2 missing values generated)
+
+{com}. gen lngdp = ln(gdp_ppp)
+{txt}(6 missing values generated)
+
+{com}. keep if !missing(le_who, lnche)
+{txt}(5 observations deleted)
+
+{com}. regress le_who lnche lngdp, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}       121
+                                                {txt}F(2, 118)         =  {res}    66.87
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.5452
+                                                {txt}Root MSE          =    {res} 4.4179
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}      le_who{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 7}lnche {c |}{col 14}{res}{space 2} 1.267447{col 26}{space 2} 1.224991{col 37}{space 1}    1.03{col 46}{space 3}0.303{col 54}{space 4}-1.158368{col 67}{space 3} 3.693262
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} 4.220002{col 26}{space 2} 1.581329{col 37}{space 1}    2.67{col 46}{space 3}0.009{col 54}{space 4} 1.088541{col 67}{space 3} 7.351464
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 24.39966{col 26}{space 2} 7.809024{col 37}{space 1}    3.12{col 46}{space 3}0.002{col 54}{space 4} 8.935669{col 67}{space 3} 39.86365
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "B.lnche_gdp" lnche
+{txt}
+{com}. local chk_B = _b[lnche]
+{txt}
+{com}. 
+. * --- reproduction checks against the stored v3/v4 results --------------------
+. preserve
+{txt}
+{com}.     import delimited using "$out/results_v4.csv", clear varnames(1) asdouble
+{res}{txt}(encoding automatically selected: ISO-8859-1)
+{text}(2 vars, 812 obs)
+
+{com}.     quietly summarize value if key == "pov.gap_q.spl.b"
+{txt}
+{com}.     assert reldif(r(mean), `chk_abs') < 1e-8
+{txt}
+{com}.     quietly summarize value if key == "alt.gap_q.ln_ratio.b"
+{txt}
+{com}.     assert reldif(r(mean), `chk_ratio') < 1e-8
+{txt}
+{com}.     import delimited using "$out/results_v3.csv", clear varnames(1) asdouble
+{res}{txt}(encoding automatically selected: ISO-8859-1)
+{text}(2 vars, 379 obs)
+
+{com}.     quietly summarize value if key == "B.lnche_gdp"
+{txt}
+{com}.     assert reldif(r(mean), `chk_B') < 1e-8
+{txt}
+{com}. restore
+{txt}
+{com}. di as result "Reproduction checks passed (v4 gap, v4 ratio, v3 Design B)."
+{res}Reproduction checks passed (v4 gap, v4 ratio, v3 Design B).
+{txt}
+{com}. 
+. postclose `V'
+{txt}
+{com}. use "$out/results_v6.dta", clear
+{txt}
+{com}. export delimited using "$out/results_v6.csv", replace
+{res}{txt}{p 0 4 2}
+(file {bf}
+C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_v6.csv{rm}
+not found)
+{p_end}
+{txt}file {bf:C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_v6.csv} saved
+
+{com}. list, clean noobs
+{txt}
+    {res}                     key        value {txt} 
+    {res}         check.abs_spl.b    .60361397 {txt} 
+    {res}         check.abs_spl.p    7.837e-07 {txt} 
+    {res}        check.abs_spl.lo    .37667248 {txt} 
+    {res}        check.abs_spl.hi    .83055546 {txt} 
+    {res}         check.abs_spl.n          102 {txt} 
+    {res}     check.abs_spl_reg.b    .64855005 {txt} 
+    {res}     check.abs_spl_reg.p    3.673e-07 {txt} 
+    {res}    check.abs_spl_reg.lo    .41338046 {txt} 
+    {res}    check.abs_spl_reg.hi    .88371964 {txt} 
+    {res}     check.abs_spl_reg.n          102 {txt} 
+    {res}          info.n_q5_zero           10 {txt} 
+    {res}      ratio.v4_oop_gdp.b   -.02358995 {txt} 
+    {res}      ratio.v4_oop_gdp.p    .00368301 {txt} 
+    {res}     ratio.v4_oop_gdp.lo   -.03932252 {txt} 
+    {res}     ratio.v4_oop_gdp.hi   -.00785739 {txt} 
+    {res}      ratio.v4_oop_gdp.n          101 {txt} 
+    {res}             ratio.spl.b   -.02480795 {txt} 
+    {res}             ratio.spl.p    .01286947 {txt} 
+    {res}            ratio.spl.lo   -.04422713 {txt} 
+    {res}            ratio.spl.hi   -.00538876 {txt} 
+    {res}             ratio.spl.n           94 {txt} 
+    {res}         ratio.spl_pov.b   -.00975129 {txt} 
+    {res}         ratio.spl_pov.p    .59897215 {txt} 
+    {res}        ratio.spl_pov.lo   -.04645934 {txt} 
+    {res}        ratio.spl_pov.hi    .02695675 {txt} 
+    {res}         ratio.spl_pov.n           94 {txt} 
+    {res}         ratio.spl_reg.b    -.0240283 {txt} 
+    {res}         ratio.spl_reg.p    .01483528 {txt} 
+    {res}        ratio.spl_reg.lo   -.04323765 {txt} 
+    {res}        ratio.spl_reg.hi   -.00481895 {txt} 
+    {res}         ratio.spl_reg.n           94 {txt} 
+    {res}              lnq1.spl.b    .01091321 {txt} 
+    {res}              lnq1.spl.p     .0000978 {txt} 
+    {res}             lnq1.spl.lo    .00559701 {txt} 
+    {res}             lnq1.spl.hi    .01622942 {txt} 
+    {res}              lnq1.spl.n           94 {txt} 
+    {res}              lnq5.spl.b    .03572116 {txt} 
+    {res}              lnq5.spl.p    .00004977 {txt} 
+    {res}             lnq5.spl.lo    .01907074 {txt} 
+    {res}             lnq5.spl.hi    .05237158 {txt} 
+    {res}              lnq5.spl.n           94 {txt} 
+    {res}                q1.spl.b     .5309811 {txt} 
+    {res}                q1.spl.p    8.724e-06 {txt} 
+    {res}               q1.spl.lo    .30733049 {txt} 
+    {res}               q1.spl.hi    .75463171 {txt} 
+    {res}                q1.spl.n           94 {txt} 
+    {res}                q5.spl.b    .05838756 {txt} 
+    {res}                q5.spl.p    .03800431 {txt} 
+    {res}               q5.spl.lo    .00330367 {txt} 
+    {res}               q5.spl.hi    .11347146 {txt} 
+    {res}                q5.spl.n           94 {txt} 
+    {res}           level.q1.mean     61.25781 {txt} 
+    {res}         level.q1.median    61.583927 {txt} 
+    {res}            level.q1.min    7.6925302 {txt} 
+    {res}           level.q5.mean    2.7498623 {txt} 
+    {res}         level.q5.median    1.6378624 {txt} 
+    {res}            level.q5.min    .02083185 {txt} 
+    {res}            level.q5.p10    .19454767 {txt} 
+    {res}      ratio.sens_q5ge1.b    .01302744 {txt} 
+    {res}      ratio.sens_q5ge1.p     .2316941 {txt} 
+    {res}     ratio.sens_q5ge1.lo   -.00857442 {txt} 
+    {res}     ratio.sens_q5ge1.hi    .03462931 {txt} 
+    {res}      ratio.sens_q5ge1.n           56 {txt} 
+    {res}ratio.sens_q5ge1.dropped           38 {txt} 
+    {res}           B.lnche_gdp.b    1.2674468 {txt} 
+    {res}           B.lnche_gdp.p    .30294427 {txt} 
+    {res}          B.lnche_gdp.lo   -1.1583681 {txt} 
+    {res}          B.lnche_gdp.hi    3.6932617 {txt} 
+    {res}           B.lnche_gdp.n          121 {txt} 
+
+{com}. log close
+      {txt}name:  {res}<unnamed>
+       {txt}log:  {res}C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/v6_log.smcl
+  {txt}log type:  {res}smcl
+ {txt}closed on:  {res}20 Nov 2026, 19:03:13
+{txt}{.-}
+{smcl}
+{txt}{sf}{ul off}

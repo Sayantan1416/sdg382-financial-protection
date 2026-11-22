@@ -1,0 +1,438 @@
+-------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/e1_
+> log.smcl
+  log type:  smcl
+ opened on:  20 Nov 2026, 19:03:03
+
+. 
+. tempname V
+
+. postfile `V' str60 key double value using "$out/results_e1.dta", replace
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_e1
+    > .dta not found)
+
+. cap program drop put
+
+. program define put
+  1.     gettoken h 0 : 0
+  2.     gettoken key 0 : 0
+  3.     post `h' ("`key'") (`0')
+  4. end
+
+. 
+. *--- 1. DHS barrier with ISO3 codes -----------------------------------------
+> ---
+. import delimited using "$in/$dhsc", clear varnames(1) case(lower) stringcols(
+> _all)
+(encoding automatically selected: ISO-8859-1)
+(3 vars, 92 obs)
+
+. keep dhs_countrycode iso3_countrycode
+
+. rename iso3_countrycode iso3
+
+. tempfile C
+
+. save `C'
+file C:\Users\<user>\AppData\Local\Temp\ST_5d30_000001.tmp saved as .dta
+    format
+
+. import delimited using "$in/$dhs", clear varnames(1) case(lower)
+(encoding automatically selected: ISO-8859-1)
+(28 vars, 186 obs)
+
+. assert characteristiclabel == "Total" & surveytype == "DHS" & indicatorid == 
+> "RH_PAHC_W_MON"
+
+. keep dhs_countrycode surveyyear value
+
+. merge m:1 dhs_countrycode using `C', keep(match) nogen
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                               186  
+    -----------------------------------------
+
+. rename (surveyyear value) (dhs_year money)
+
+. keep iso3 dhs_year money
+
+. duplicates drop iso3 dhs_year, force
+
+Duplicates in terms of iso3 dhs_year
+
+(0 observations are duplicates)
+
+. tempfile D
+
+. save `D'
+file C:\Users\<user>\AppData\Local\Temp\ST_5d30_000002.tmp saved as .dta
+    format
+
+. count
+  186
+
+. put `V' "dhs.n_surveys" r(N)
+
+. 
+. *--- 2. same-survey pairs + half splits (rule of 05_revision_analysis.do) ---
+> ----
+. import delimited using "$out/pairs_same_survey.csv", clear varnames(1) case(l
+> ower)
+(encoding automatically selected: ISO-8859-1)
+(8 vars, 104 obs)
+
+. quietly summarize cat10, detail
+
+. gen byte old_low  = cat10 < r(p50)
+
+. quietly summarize fh_total, detail
+
+. gen byte new_high = fh_total >= r(p50)
+
+. * ln GDP per person matched to the SDG survey year (+/-2, exact, then earlier
+> )
+. gen long row = _n
+
+. preserve
+
+.     use iso3 year gdp_ppp using "$in/panel.dta", clear
+(LMIC panel 2000-2023, WDI + WHO GHO)
+
+.     drop if missing(gdp_ppp)
+(166 observations deleted)
+
+.     rename year y_g
+
+.     tempfile G
+
+.     save `G'
+file C:\Users\<user>\AppData\Local\Temp\ST_5d30_000004.tmp saved as .dta
+    format
+
+. restore
+
+. joinby iso3 using `G', unmatched(master)
+
+. gen d_g = abs(y_g - svy_year)
+(2 missing values generated)
+
+. bysort row (d_g y_g): keep if _n == 1
+(2,332 observations deleted)
+
+. replace gdp_ppp = . if missing(d_g) | d_g > 2
+(0 real changes made)
+
+. gen lngdp = ln(gdp_ppp)
+(2 missing values generated)
+
+. drop _merge d_g y_g
+
+. tempfile P
+
+. save `P'
+file C:\Users\<user>\AppData\Local\Temp\ST_5d30_000005.tmp saved as .dta
+    format
+
+. 
+. *--- 3. match DHS survey nearest to svy_year, for windows 0-3 ---------------
+> ---
+. joinby iso3 using `D', unmatched(master)
+
+. gen gap = abs(dhs_year - svy_year)
+(42 missing values generated)
+
+. bysort row (gap dhs_year): keep if _n == 1
+(114 observations deleted)
+
+. drop _merge row
+
+. tempfile M
+
+. save `M'
+file C:\Users\<user>\AppData\Local\Temp\ST_5d30_000006.tmp saved as .dta
+    format
+
+. 
+. forvalues w = 0/3 {
+  2.     use `M', clear
+  3.     keep if gap <= `w'
+  4.     count
+  5.     put `V' "win`w'.n" r(N)
+  6.     spearman money cat10
+  7.     put `V' "win`w'.rho_cat10" r(rho)
+  8.     put `V' "win`w'.p_cat10" r(p)
+  9.     spearman money fh_total
+ 10.     put `V' "win`w'.rho_fh" r(rho)
+ 11.     put `V' "win`w'.p_fh" r(p)
+ 12. }
+(96 observations deleted)
+  8
+
+ Number of obs =       8
+Spearman's rho =      -0.3095
+
+Test of H0: money and cat10 are independent
+    Prob > |t| =       0.4556
+
+ Number of obs =       8
+Spearman's rho =       0.5238
+
+Test of H0: money and fh_total are independent
+    Prob > |t| =       0.1827
+(83 observations deleted)
+  21
+
+ Number of obs =      21
+Spearman's rho =      -0.0104
+
+Test of H0: money and cat10 are independent
+    Prob > |t| =       0.9643
+
+ Number of obs =      21
+Spearman's rho =       0.3026
+
+Test of H0: money and fh_total are independent
+    Prob > |t| =       0.1824
+(69 observations deleted)
+  35
+
+ Number of obs =      35
+Spearman's rho =       0.3237
+
+Test of H0: money and cat10 are independent
+    Prob > |t| =       0.0578
+
+ Number of obs =      35
+Spearman's rho =       0.4245
+
+Test of H0: money and fh_total are independent
+    Prob > |t| =       0.0110
+(60 observations deleted)
+  44
+
+ Number of obs =      44
+Spearman's rho =       0.2081
+
+Test of H0: money and cat10 are independent
+    Prob > |t| =       0.1752
+
+ Number of obs =      44
+Spearman's rho =       0.3722
+
+Test of H0: money and fh_total are independent
+    Prob > |t| =       0.0129
+
+. 
+. *--- 4. main sample (+/-2 years) --------------------------------------------
+> ---
+. use `M', clear
+
+. keep if gap <= 2
+(69 observations deleted)
+
+. export delimited iso3 svy_year dhs_year gap income cat10 fh_total money old_l
+> ow new_high lngdp ///
+>     using "$out/e1_sample.csv", replace
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/e1_sample.
+    > csv not found)
+file C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/e1_sample.c
+> sv saved
+
+. count
+  35
+
+. put `V' "main.n" r(N)
+
+. quietly summarize gap
+
+. put `V' "main.gap_mean" r(mean)
+
+. count if gap == 0
+  8
+
+. put `V' "main.n_sameyear" r(N)
+
+. quietly summarize dhs_year
+
+. put `V' "main.dhs_year_min" r(min)
+
+. put `V' "main.dhs_year_max" r(max)
+
+. quietly summarize money, detail
+
+. put `V' "main.money_median" r(p50)
+
+. foreach g in LIC LMC UMC {
+  2.     quietly summarize money if income == "`g'", detail
+  3.     put `V' "main.`g'.n" r(N)
+  4.     put `V' "main.`g'.money_median" r(p50)
+  5. }
+
+. * hidden-need test
+. count if old_low == 1
+  19
+
+. put `V' "hidden.n_oldlow" r(N)
+
+. foreach s in 1 0 {
+  2.     quietly summarize money if old_low == 1 & new_high == `s', detail
+  3.     put `V' "hidden.newhigh`s'.n" r(N)
+  4.     put `V' "hidden.newhigh`s'.money_median" r(p50)
+  5. }
+
+. ranksum money if old_low == 1, by(new_high)
+
+Two-sample Wilcoxon rank-sum (Mann–Whitney) test
+
+    new_high |      Obs    Rank sum    Expected
+-------------+---------------------------------
+           0 |        8          67          80
+           1 |       11         123         110
+-------------+---------------------------------
+    Combined |       19         190         190
+
+Unadjusted variance      146.67
+Adjustment for ties        0.00
+                     ----------
+Adjusted variance        146.67
+
+H0: money(new_high==0) = money(new_high==1)
+         z = -1.073
+Prob > |z| = 0.2831
+Exact prob = 0.3100
+
+. put `V' "hidden.ranksum_p" 2*normprob(-abs(r(z)))
+
+. * income-adjusted association (validity check)
+. foreach v in cat10 fh_total {
+  2.     regress money `v' lngdp, vce(robust)
+  3.     tempname rt
+  4.     matrix `rt' = r(table)
+  5.     put `V' "adj.`v'.b"  `rt'[1,1]
+  6.     put `V' "adj.`v'.p"  `rt'[4,1]
+  7.     put `V' "adj.`v'.lo" `rt'[5,1]
+  8.     put `V' "adj.`v'.hi" `rt'[6,1]
+  9.     put `V' "adj.`v'.n"  e(N)
+ 10.     put `V' "adj.`v'.lngdp_p" `rt'[4,2]
+ 11. }
+
+Linear regression                               Number of obs     =         34
+                                                F(2, 31)          =       5.79
+                                                Prob > F          =     0.0073
+                                                R-squared         =     0.2854
+                                                Root MSE          =     13.689
+
+------------------------------------------------------------------------------
+             |               Robust
+       money | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       cat10 |   .7461732   .3545142     2.10   0.044     .0231366     1.46921
+       lngdp |  -10.47592   3.616978    -2.90   0.007     -17.8528   -3.099047
+       _cons |   128.9514   30.41769     4.24   0.000     66.91417    190.9887
+------------------------------------------------------------------------------
+
+Linear regression                               Number of obs     =         34
+                                                F(2, 31)          =       6.23
+                                                Prob > F          =     0.0053
+                                                R-squared         =     0.2599
+                                                Root MSE          =     13.932
+
+------------------------------------------------------------------------------
+             |               Robust
+       money | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    fh_total |   .3787477   .2322913     1.63   0.113    -.0950136    .8525089
+       lngdp |  -6.986298   4.286652    -1.63   0.113    -15.72898    1.756386
+       _cons |   94.05833   40.97599     2.30   0.029     10.48724    177.6294
+------------------------------------------------------------------------------
+
+. * Bangladesh
+. quietly summarize money if iso3 == "BGD"
+
+. put `V' "bgd.money" r(mean)
+
+. quietly summarize dhs_year if iso3 == "BGD"
+
+. put `V' "bgd.dhs_year" r(mean)
+
+. 
+. postclose `V'
+
+. use "$out/results_e1.dta", clear
+
+. export delimited using "$out/results_e1.csv", replace
+(file
+    C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_e1
+    > .csv not found)
+file C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_e1.
+> csv saved
+
+. list, clean noobs
+
+                             key        value  
+                   dhs.n_surveys          186  
+                          win0.n            8  
+                  win0.rho_cat10   -.30952381  
+                    win0.p_cat10    .45564489  
+                     win0.rho_fh    .52380952  
+                       win0.p_fh    .18272075  
+                          win1.n           21  
+                  win1.rho_cat10   -.01038961  
+                    win1.p_cat10    .96434901  
+                     win1.rho_fh     .3025974  
+                       win1.p_fh    .18244109  
+                          win2.n           35  
+                  win2.rho_cat10    .32369214  
+                    win2.p_cat10    .05784565  
+                     win2.rho_fh    .42453953  
+                       win2.p_fh     .0110247  
+                          win3.n           44  
+                  win3.rho_cat10    .20811897  
+                    win3.p_cat10    .17520719  
+                     win3.rho_fh    .37218973  
+                       win3.p_fh    .01285165  
+                          main.n           35  
+                   main.gap_mean    1.1714286  
+                 main.n_sameyear            8  
+               main.dhs_year_min         2006  
+               main.dhs_year_max         2023  
+               main.money_median    45.799999  
+                      main.LIC.n            8  
+           main.LIC.money_median    52.049999  
+                      main.LMC.n           19  
+           main.LMC.money_median           43  
+                      main.UMC.n            8  
+           main.UMC.money_median    35.450001  
+                 hidden.n_oldlow           19  
+               hidden.newhigh1.n           11  
+    hidden.newhigh1.money_median    46.099998  
+               hidden.newhigh0.n            8  
+    hidden.newhigh0.money_median        39.75  
+                hidden.ranksum_p    .28307389  
+                     adj.cat10.b    .74617316  
+                     adj.cat10.p    .04351457  
+                    adj.cat10.lo     .0231366  
+                    adj.cat10.hi    1.4692097  
+                     adj.cat10.n           34  
+               adj.cat10.lngdp_p    .00686544  
+                  adj.fh_total.b    .37874765  
+                  adj.fh_total.p    .11311905  
+                 adj.fh_total.lo   -.09501359  
+                 adj.fh_total.hi    .85250889  
+                  adj.fh_total.n           34  
+            adj.fh_total.lngdp_p    .11326893  
+                       bgd.money    43.799999  
+                    bgd.dhs_year         2017  
+
+. log close
+      name:  <unnamed>
+       log:  C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/e1_
+> log.smcl
+  log type:  smcl
+ closed on:  20 Nov 2026, 19:03:07
+-------------------------------------------------------------------------------

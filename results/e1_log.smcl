@@ -1,0 +1,454 @@
+{smcl}
+{txt}{sf}{ul off}{.-}
+      name:  {res}<unnamed>
+       {txt}log:  {res}C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/e1_log.smcl
+  {txt}log type:  {res}smcl
+ {txt}opened on:  {res}20 Nov 2026, 19:03:03
+{txt}
+{com}. 
+. tempname V
+{txt}
+{com}. postfile `V' str60 key double value using "$out/results_e1.dta", replace
+{txt}{p 0 4 2}
+(file {bf}
+C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_e1.dta{rm}
+not found)
+{p_end}
+
+{com}. cap program drop put
+{txt}
+{com}. program define put
+{txt}  1{com}.     gettoken h 0 : 0
+{txt}  2{com}.     gettoken key 0 : 0
+{txt}  3{com}.     post `h' ("`key'") (`0')
+{txt}  4{com}. end
+{txt}
+{com}. 
+. *--- 1. DHS barrier with ISO3 codes --------------------------------------------
+. import delimited using "$in/$dhsc", clear varnames(1) case(lower) stringcols(_all)
+{res}{txt}(encoding automatically selected: ISO-8859-1)
+{text}(3 vars, 92 obs)
+
+{com}. keep dhs_countrycode iso3_countrycode
+{txt}
+{com}. rename iso3_countrycode iso3
+{res}{txt}
+{com}. tempfile C
+{txt}
+{com}. save `C'
+{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000001.tmp{rm}
+saved
+as .dta format
+{p_end}
+
+{com}. import delimited using "$in/$dhs", clear varnames(1) case(lower)
+{res}{txt}(encoding automatically selected: ISO-8859-1)
+{text}(28 vars, 186 obs)
+
+{com}. assert characteristiclabel == "Total" & surveytype == "DHS" & indicatorid == "RH_PAHC_W_MON"
+{txt}
+{com}. keep dhs_countrycode surveyyear value
+{txt}
+{com}. merge m:1 dhs_countrycode using `C', keep(match) nogen
+{res}
+{txt}{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}               0
+{txt}{col 5}Matched{col 30}{res}             186{txt}  
+{col 5}{hline 41}
+
+{com}. rename (surveyyear value) (dhs_year money)
+{res}{txt}
+{com}. keep iso3 dhs_year money
+{txt}
+{com}. duplicates drop iso3 dhs_year, force
+
+{p 0 4}{txt}Duplicates in terms of {res} iso3 dhs_year{p_end}
+
+{txt}(0 observations are duplicates)
+
+{com}. tempfile D
+{txt}
+{com}. save `D'
+{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000002.tmp{rm}
+saved
+as .dta format
+{p_end}
+
+{com}. count
+  {res}186
+{txt}
+{com}. put `V' "dhs.n_surveys" r(N)
+{txt}
+{com}. 
+. *--- 2. same-survey pairs + half splits (rule of 05_revision_analysis.do) -------
+. import delimited using "$out/pairs_same_survey.csv", clear varnames(1) case(lower)
+{res}{txt}(encoding automatically selected: ISO-8859-1)
+{text}(8 vars, 104 obs)
+
+{com}. quietly summarize cat10, detail
+{txt}
+{com}. gen byte old_low  = cat10 < r(p50)
+{txt}
+{com}. quietly summarize fh_total, detail
+{txt}
+{com}. gen byte new_high = fh_total >= r(p50)
+{txt}
+{com}. * ln GDP per person matched to the SDG survey year (+/-2, exact, then earlier)
+. gen long row = _n
+{txt}
+{com}. preserve
+{txt}
+{com}.     use iso3 year gdp_ppp using "$in/panel.dta", clear
+{txt}(LMIC panel 2000-2023, WDI + WHO GHO)
+
+{com}.     drop if missing(gdp_ppp)
+{txt}(166 observations deleted)
+
+{com}.     rename year y_g
+{res}{txt}
+{com}.     tempfile G
+{txt}
+{com}.     save `G'
+{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000004.tmp{rm}
+saved
+as .dta format
+{p_end}
+
+{com}. restore
+{txt}
+{com}. joinby iso3 using `G', unmatched(master)
+{txt}
+{com}. gen d_g = abs(y_g - svy_year)
+{txt}(2 missing values generated)
+
+{com}. bysort row (d_g y_g): keep if _n == 1
+{txt}(2,332 observations deleted)
+
+{com}. replace gdp_ppp = . if missing(d_g) | d_g > 2
+{txt}(0 real changes made)
+
+{com}. gen lngdp = ln(gdp_ppp)
+{txt}(2 missing values generated)
+
+{com}. drop _merge d_g y_g
+{txt}
+{com}. tempfile P
+{txt}
+{com}. save `P'
+{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000005.tmp{rm}
+saved
+as .dta format
+{p_end}
+
+{com}. 
+. *--- 3. match DHS survey nearest to svy_year, for windows 0-3 ------------------
+. joinby iso3 using `D', unmatched(master)
+{txt}
+{com}. gen gap = abs(dhs_year - svy_year)
+{txt}(42 missing values generated)
+
+{com}. bysort row (gap dhs_year): keep if _n == 1
+{txt}(114 observations deleted)
+
+{com}. drop _merge row
+{txt}
+{com}. tempfile M
+{txt}
+{com}. save `M'
+{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000006.tmp{rm}
+saved
+as .dta format
+{p_end}
+
+{com}. 
+. forvalues w = 0/3 {c -(}
+{txt}  2{com}.     use `M', clear
+{txt}  3{com}.     keep if gap <= `w'
+{txt}  4{com}.     count
+{txt}  5{com}.     put `V' "win`w'.n" r(N)
+{txt}  6{com}.     spearman money cat10
+{txt}  7{com}.     put `V' "win`w'.rho_cat10" r(rho)
+{txt}  8{com}.     put `V' "win`w'.p_cat10" r(p)
+{txt}  9{com}.     spearman money fh_total
+{txt} 10{com}.     put `V' "win`w'.rho_fh" r(rho)
+{txt} 11{com}.     put `V' "win`w'.p_fh" r(p)
+{txt} 12{com}. {c )-}
+{txt}(96 observations deleted)
+  {res}8
+
+{txt} Number of obs = {res}      8
+{txt}Spearman's rho = {res}     -0.3095
+
+{txt}Test of H0: money and cat10 are independent
+    Prob > |t| = {res}      0.4556
+
+{txt} Number of obs = {res}      8
+{txt}Spearman's rho = {res}      0.5238
+
+{txt}Test of H0: money and fh_total are independent
+    Prob > |t| = {res}      0.1827
+{txt}(83 observations deleted)
+  {res}21
+
+{txt} Number of obs = {res}     21
+{txt}Spearman's rho = {res}     -0.0104
+
+{txt}Test of H0: money and cat10 are independent
+    Prob > |t| = {res}      0.9643
+
+{txt} Number of obs = {res}     21
+{txt}Spearman's rho = {res}      0.3026
+
+{txt}Test of H0: money and fh_total are independent
+    Prob > |t| = {res}      0.1824
+{txt}(69 observations deleted)
+  {res}35
+
+{txt} Number of obs = {res}     35
+{txt}Spearman's rho = {res}      0.3237
+
+{txt}Test of H0: money and cat10 are independent
+    Prob > |t| = {res}      0.0578
+
+{txt} Number of obs = {res}     35
+{txt}Spearman's rho = {res}      0.4245
+
+{txt}Test of H0: money and fh_total are independent
+    Prob > |t| = {res}      0.0110
+{txt}(60 observations deleted)
+  {res}44
+
+{txt} Number of obs = {res}     44
+{txt}Spearman's rho = {res}      0.2081
+
+{txt}Test of H0: money and cat10 are independent
+    Prob > |t| = {res}      0.1752
+
+{txt} Number of obs = {res}     44
+{txt}Spearman's rho = {res}      0.3722
+
+{txt}Test of H0: money and fh_total are independent
+    Prob > |t| = {res}      0.0129
+{txt}
+{com}. 
+. *--- 4. main sample (+/-2 years) -----------------------------------------------
+. use `M', clear
+{txt}
+{com}. keep if gap <= 2
+{txt}(69 observations deleted)
+
+{com}. export delimited iso3 svy_year dhs_year gap income cat10 fh_total money old_low new_high lngdp ///
+>     using "$out/e1_sample.csv", replace
+{res}{txt}{p 0 4 2}
+(file {bf}
+C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/e1_sample.csv{rm}
+not found)
+{p_end}
+{txt}file {bf:C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/e1_sample.csv} saved
+
+{com}. count
+  {res}35
+{txt}
+{com}. put `V' "main.n" r(N)
+{txt}
+{com}. quietly summarize gap
+{txt}
+{com}. put `V' "main.gap_mean" r(mean)
+{txt}
+{com}. count if gap == 0
+  {res}8
+{txt}
+{com}. put `V' "main.n_sameyear" r(N)
+{txt}
+{com}. quietly summarize dhs_year
+{txt}
+{com}. put `V' "main.dhs_year_min" r(min)
+{txt}
+{com}. put `V' "main.dhs_year_max" r(max)
+{txt}
+{com}. quietly summarize money, detail
+{txt}
+{com}. put `V' "main.money_median" r(p50)
+{txt}
+{com}. foreach g in LIC LMC UMC {c -(}
+{txt}  2{com}.     quietly summarize money if income == "`g'", detail
+{txt}  3{com}.     put `V' "main.`g'.n" r(N)
+{txt}  4{com}.     put `V' "main.`g'.money_median" r(p50)
+{txt}  5{com}. {c )-}
+{txt}
+{com}. * hidden-need test
+. count if old_low == 1
+  {res}19
+{txt}
+{com}. put `V' "hidden.n_oldlow" r(N)
+{txt}
+{com}. foreach s in 1 0 {c -(}
+{txt}  2{com}.     quietly summarize money if old_low == 1 & new_high == `s', detail
+{txt}  3{com}.     put `V' "hidden.newhigh`s'.n" r(N)
+{txt}  4{com}.     put `V' "hidden.newhigh`s'.money_median" r(p50)
+{txt}  5{com}. {c )-}
+{txt}
+{com}. ranksum money if old_low == 1, by(new_high)
+
+{txt}Two-sample Wilcoxon rank-sum (Mann–Whitney) test
+
+    new_high {c |}      Obs    Rank sum    Expected
+{hline 13}{c +}{hline 33}
+           0 {c |}{res}{col 17}      8{col 26}        67{col 38}        80
+           {txt}1 {c |}{res}{col 17}     11{col 26}       123{col 38}       110
+{txt}{hline 13}{c +}{hline 33}
+    Combined {c |}{res}{col 17}     19{col 26}       190{col 38}       190
+
+{txt}Unadjusted variance{col 22}{res}    146.67
+{txt}Adjustment for ties{col 22}{res}      0.00
+{txt}{col 22}{hline 10}
+Adjusted variance{col 22}{res}    146.67
+
+{txt}H0: money(new_high==0) = money(new_high==1)
+{col 10}z = {res}{ralign 6:-1.073}
+{txt}{col 1}Prob > |z| = {res}{ralign 6:0.2831}
+{txt}{col 1}Exact prob = {res}{ralign 6:0.3100}
+{txt}
+{com}. put `V' "hidden.ranksum_p" 2*normprob(-abs(r(z)))
+{txt}
+{com}. * income-adjusted association (validity check)
+. foreach v in cat10 fh_total {c -(}
+{txt}  2{com}.     regress money `v' lngdp, vce(robust)
+{txt}  3{com}.     tempname rt
+{txt}  4{com}.     matrix `rt' = r(table)
+{txt}  5{com}.     put `V' "adj.`v'.b"  `rt'[1,1]
+{txt}  6{com}.     put `V' "adj.`v'.p"  `rt'[4,1]
+{txt}  7{com}.     put `V' "adj.`v'.lo" `rt'[5,1]
+{txt}  8{com}.     put `V' "adj.`v'.hi" `rt'[6,1]
+{txt}  9{com}.     put `V' "adj.`v'.n"  e(N)
+{txt} 10{com}.     put `V' "adj.`v'.lngdp_p" `rt'[4,2]
+{txt} 11{com}. {c )-}
+
+{txt}Linear regression                               Number of obs     = {res}        34
+                                                {txt}F(2, 31)          =  {res}     5.79
+                                                {txt}Prob > F          = {res}    0.0073
+                                                {txt}R-squared         = {res}    0.2854
+                                                {txt}Root MSE          =    {res} 13.689
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       money{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 7}cat10 {c |}{col 14}{res}{space 2} .7461732{col 26}{space 2} .3545142{col 37}{space 1}    2.10{col 46}{space 3}0.044{col 54}{space 4} .0231366{col 67}{space 3}  1.46921
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2}-10.47592{col 26}{space 2} 3.616978{col 37}{space 1}   -2.90{col 46}{space 3}0.007{col 54}{space 4} -17.8528{col 67}{space 3}-3.099047
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 128.9514{col 26}{space 2} 30.41769{col 37}{space 1}    4.24{col 46}{space 3}0.000{col 54}{space 4} 66.91417{col 67}{space 3} 190.9887
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}        34
+                                                {txt}F(2, 31)          =  {res}     6.23
+                                                {txt}Prob > F          = {res}    0.0053
+                                                {txt}R-squared         = {res}    0.2599
+                                                {txt}Root MSE          =    {res} 13.932
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       money{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 4}fh_total {c |}{col 14}{res}{space 2} .3787477{col 26}{space 2} .2322913{col 37}{space 1}    1.63{col 46}{space 3}0.113{col 54}{space 4}-.0950136{col 67}{space 3} .8525089
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2}-6.986298{col 26}{space 2} 4.286652{col 37}{space 1}   -1.63{col 46}{space 3}0.113{col 54}{space 4}-15.72898{col 67}{space 3} 1.756386
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 94.05833{col 26}{space 2} 40.97599{col 37}{space 1}    2.30{col 46}{space 3}0.029{col 54}{space 4} 10.48724{col 67}{space 3} 177.6294
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. * Bangladesh
+. quietly summarize money if iso3 == "BGD"
+{txt}
+{com}. put `V' "bgd.money" r(mean)
+{txt}
+{com}. quietly summarize dhs_year if iso3 == "BGD"
+{txt}
+{com}. put `V' "bgd.dhs_year" r(mean)
+{txt}
+{com}. 
+. postclose `V'
+{txt}
+{com}. use "$out/results_e1.dta", clear
+{txt}
+{com}. export delimited using "$out/results_e1.csv", replace
+{res}{txt}{p 0 4 2}
+(file {bf}
+C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_e1.csv{rm}
+not found)
+{p_end}
+{txt}file {bf:C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_e1.csv} saved
+
+{com}. list, clean noobs
+{txt}
+    {res}                         key        value {txt} 
+    {res}               dhs.n_surveys          186 {txt} 
+    {res}                      win0.n            8 {txt} 
+    {res}              win0.rho_cat10   -.30952381 {txt} 
+    {res}                win0.p_cat10    .45564489 {txt} 
+    {res}                 win0.rho_fh    .52380952 {txt} 
+    {res}                   win0.p_fh    .18272075 {txt} 
+    {res}                      win1.n           21 {txt} 
+    {res}              win1.rho_cat10   -.01038961 {txt} 
+    {res}                win1.p_cat10    .96434901 {txt} 
+    {res}                 win1.rho_fh     .3025974 {txt} 
+    {res}                   win1.p_fh    .18244109 {txt} 
+    {res}                      win2.n           35 {txt} 
+    {res}              win2.rho_cat10    .32369214 {txt} 
+    {res}                win2.p_cat10    .05784565 {txt} 
+    {res}                 win2.rho_fh    .42453953 {txt} 
+    {res}                   win2.p_fh     .0110247 {txt} 
+    {res}                      win3.n           44 {txt} 
+    {res}              win3.rho_cat10    .20811897 {txt} 
+    {res}                win3.p_cat10    .17520719 {txt} 
+    {res}                 win3.rho_fh    .37218973 {txt} 
+    {res}                   win3.p_fh    .01285165 {txt} 
+    {res}                      main.n           35 {txt} 
+    {res}               main.gap_mean    1.1714286 {txt} 
+    {res}             main.n_sameyear            8 {txt} 
+    {res}           main.dhs_year_min         2006 {txt} 
+    {res}           main.dhs_year_max         2023 {txt} 
+    {res}           main.money_median    45.799999 {txt} 
+    {res}                  main.LIC.n            8 {txt} 
+    {res}       main.LIC.money_median    52.049999 {txt} 
+    {res}                  main.LMC.n           19 {txt} 
+    {res}       main.LMC.money_median           43 {txt} 
+    {res}                  main.UMC.n            8 {txt} 
+    {res}       main.UMC.money_median    35.450001 {txt} 
+    {res}             hidden.n_oldlow           19 {txt} 
+    {res}           hidden.newhigh1.n           11 {txt} 
+    {res}hidden.newhigh1.money_median    46.099998 {txt} 
+    {res}           hidden.newhigh0.n            8 {txt} 
+    {res}hidden.newhigh0.money_median        39.75 {txt} 
+    {res}            hidden.ranksum_p    .28307389 {txt} 
+    {res}                 adj.cat10.b    .74617316 {txt} 
+    {res}                 adj.cat10.p    .04351457 {txt} 
+    {res}                adj.cat10.lo     .0231366 {txt} 
+    {res}                adj.cat10.hi    1.4692097 {txt} 
+    {res}                 adj.cat10.n           34 {txt} 
+    {res}           adj.cat10.lngdp_p    .00686544 {txt} 
+    {res}              adj.fh_total.b    .37874765 {txt} 
+    {res}              adj.fh_total.p    .11311905 {txt} 
+    {res}             adj.fh_total.lo   -.09501359 {txt} 
+    {res}             adj.fh_total.hi    .85250889 {txt} 
+    {res}              adj.fh_total.n           34 {txt} 
+    {res}        adj.fh_total.lngdp_p    .11326893 {txt} 
+    {res}                   bgd.money    43.799999 {txt} 
+    {res}                bgd.dhs_year         2017 {txt} 
+
+{com}. log close
+      {txt}name:  {res}<unnamed>
+       {txt}log:  {res}C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/e1_log.smcl
+  {txt}log type:  {res}smcl
+ {txt}closed on:  {res}20 Nov 2026, 19:03:07
+{txt}{.-}
+{smcl}
+{txt}{sf}{ul off}

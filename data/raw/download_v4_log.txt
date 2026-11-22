@@ -1,0 +1,7 @@
+Downloaded 2026-11-18
+  retry 1 https://api.worldbank.org/v2/country/all/indicator/SI.POV.SOPO?format=json&per_page=5000&d: The read operation timed out
+SI.POV.SOPO -> pov_spl: pages 2, lastupdated 2026-11-11
+SI.POV.DDAY -> pov_ipl: pages 2, lastupdated 2026-11-11
+SP.POP.65UP.TO.ZS -> pop65: pages 2, lastupdated 2026-11-11
+wrote wdi_v4_long_20261118.csv: 14351 rows
+wrote OGHIST_20261118.xlsx: 116890 bytes

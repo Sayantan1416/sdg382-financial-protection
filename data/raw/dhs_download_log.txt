@@ -1,0 +1,5 @@
+DHS API download for Extension 1 (care forgone because of cost)
+Date: 20 Nov 2026 18:04:58
+Indicator: RH_PAHC_W_MON (getting money for treatment), breakdown=national
+Rows downloaded: 186
+Files: dhs_RH_PAHC_W_MON_20261120.csv, dhs_countries_20261120.csv

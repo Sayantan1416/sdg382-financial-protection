@@ -1,0 +1,15 @@
+# Python packages for the optional Python steps of 20.11.26_Financial_Protection_v6.
+# Versions are the ones the v6 figures, abstract build and cross-checks were run with
+# (Python 3.13.18, 20 Nov 2026). Newer versions will very likely work too.
+# Install:   python -m pip install -r requirements.txt
+#
+# Used by:
+#   figures/src/make_figures.py   numpy, pandas, scipy, matplotlib
+#   08_v4_crosscheck.py           pandas, numpy, statsmodels
+#   11_e1_crosscheck.py           pandas, numpy, scipy
+# Not needed for the Stata analysis (stata/analysis.do).
+numpy==2.5.3
+pandas==3.0.5
+scipy==1.18.1
+matplotlib==3.11.2
+statsmodels==0.15.0

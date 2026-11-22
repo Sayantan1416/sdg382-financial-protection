@@ -1,0 +1,3034 @@
+{smcl}
+{txt}{sf}{ul off}{.-}
+      name:  {res}<unnamed>
+       {txt}log:  {res}C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/revision_log.smcl
+  {txt}log type:  {res}smcl
+ {txt}opened on:  {res}20 Nov 2026, 19:01:59
+{txt}
+{com}. di as result "Project folder: $root"
+{res}Project folder: C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6
+{txt}
+{com}. 
+. foreach p in ftools require reghdfe {c -(}
+{txt}  2{com}.     cap which `p'
+{txt}  3{com}.     if _rc ssc install `p', replace
+{txt}  4{com}. {c )-}
+{txt}
+{com}. cap reghdfe, compile
+{txt}
+{com}. 
+. set seed 20261117
+{txt}
+{com}. 
+. * --- one results file: key (JSON-style path) and value ------------------------
+. tempname V
+{txt}
+{com}. postfile `V' str60 key double value using "$out/results_v3.dta", replace
+{txt}{p 0 4 2}
+(file {bf}
+C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_v3.dta{rm}
+not found)
+{p_end}
+
+{com}. 
+. * put <postname> "<key>" <expression>   (the expression may contain spaces)
+. cap program drop put
+{txt}
+{com}. program define put
+{txt}  1{com}.     gettoken h 0 : 0
+{txt}  2{com}.     gettoken key 0 : 0
+{txt}  3{com}.     post `h' ("`key'") (`0')
+{txt}  4{com}. end
+{txt}
+{com}. 
+. * post b, p, lo, hi, n for one term of the last model (uses r(table))
+. cap program drop putb
+{txt}
+{com}. program define putb
+{txt}  1{com}.     args h key term
+{txt}  2{com}.     tempname rt
+{txt}  3{com}.     matrix `rt' = r(table)
+{txt}  4{com}.     local c = colnumb(`rt', "`term'")
+{txt}  5{com}.     post `h' ("`key'.b")  (`rt'[1,`c'])
+{txt}  6{com}.     post `h' ("`key'.p")  (`rt'[4,`c'])
+{txt}  7{com}.     post `h' ("`key'.lo") (`rt'[5,`c'])
+{txt}  8{com}.     post `h' ("`key'.hi") (`rt'[6,`c'])
+{txt}  9{com}.     post `h' ("`key'.n")  (e(N))
+{txt} 10{com}. end
+{txt}
+{com}. 
+. * attach to every row the panel value of `v' from the year nearest to svy_year
+. * (within +/- 2 years; exact year wins, then the earlier year) -- one row per
+. * country-survey, so this works for files with several surveys per country
+. cap program drop nearest2
+{txt}
+{com}. program define nearest2
+{txt}  1{com}.     args v
+{txt}  2{com}.     tempvar row
+{txt}  3{com}.     gen long `row' = _n
+{txt}  4{com}.     preserve
+{txt}  5{com}.         use iso3 year `v' using "$in/panel.dta", clear
+{txt}  6{com}.         drop if missing(`v')
+{txt}  7{com}.         rename year y_`v'
+{txt}  8{com}.         tempfile t
+{txt}  9{com}.         save `t'
+{txt} 10{com}.     restore
+{txt} 11{com}.     joinby iso3 using `t', unmatched(master)
+{txt} 12{com}.     gen double d_`v' = abs(y_`v' - svy_year)
+{txt} 13{com}.     bysort `row' (d_`v' y_`v'): keep if _n == 1
+{txt} 14{com}.     replace `v' = . if missing(d_`v') | d_`v' > 2
+{txt} 15{com}.     drop _merge d_`v' y_`v' `row'
+{txt} 16{com}. end
+{txt}
+{com}. 
+. * LMIC list
+. use "$in/countries_fy2027.dta", clear
+{txt}
+{com}. keep iso3 country region income
+{txt}
+{com}. tempfile L
+{txt}
+{com}. save `L'
+{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000001.tmp{rm}
+saved
+as .dta format
+{p_end}
+
+{com}. count
+  {res}131
+{txt}
+{com}. put `V' "data.n_lmic" r(N)
+{txt}
+{com}. foreach g in LIC LMC UMC {c -(}
+{txt}  2{com}.     count if income == "`g'"
+{txt}  3{com}.     put `V' "data.n_by_income.`g'" r(N)
+{txt}  4{com}. {c )-}
+  {res}25
+  47
+  59
+{txt}
+{com}. 
+. * survey file since 2005 with financing and income matched (+/- 2 years)
+. use "$in/fp_surveys.dta", clear
+{txt}(Financial protection survey points, national totals)
+
+{com}. keep if year >= 2005
+{txt}(177 observations deleted)
+
+{com}. merge m:1 iso3 using `L', keep(match) nogen
+{res}{txt}{p 0 7 2}
+(variable
+{bf:country} was {bf:str24}, now {bf:str30} to accommodate using data's values)
+{p_end}
+
+{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}               0
+{txt}{col 5}Matched{col 30}{res}             601{txt}  
+{col 5}{hline 41}
+
+{com}. rename year svy_year
+{res}{txt}
+{com}. foreach v in oop gov ext gdp_ppp uhc {c -(}
+{txt}  2{com}.     nearest2 `v'
+{txt}  3{com}. {c )-}
+{txt}(LMIC panel 2000-2023, WDI + WHO GHO)
+(127 observations deleted)
+{res}{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000003.tmp{rm}
+saved
+as .dta format
+{p_end}
+(6 missing values generated)
+(13,441 observations deleted)
+(5 real changes made, 5 to missing)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(127 observations deleted)
+{res}{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000003.tmp{rm}
+saved
+as .dta format
+{p_end}
+(6 missing values generated)
+(13,441 observations deleted)
+(5 real changes made, 5 to missing)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(234 observations deleted)
+{res}{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000003.tmp{rm}
+saved
+as .dta format
+{p_end}
+(21 missing values generated)
+(12,280 observations deleted)
+(28 real changes made, 28 to missing)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(166 observations deleted)
+{res}{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000003.tmp{rm}
+saved
+as .dta format
+{p_end}
+(4 missing values generated)
+(13,656 observations deleted)
+(1 real change made, 1 to missing)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(24 observations deleted)
+{res}{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000003.tmp{rm}
+saved
+as .dta format
+{p_end}
+(6 missing values generated)
+(13,685 observations deleted)
+(0 real changes made)
+
+{com}. gen lngdp = ln(gdp_ppp)
+{txt}(5 missing values generated)
+
+{com}. encode region, gen(reg)
+{txt}
+{com}. egen cid = group(iso3)
+{txt}
+{com}. tempfile S
+{txt}
+{com}. save `S'
+{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000002.tmp{rm}
+saved
+as .dta format
+{p_end}
+
+{com}. 
+. *------------------------------------------------------------------------------
+. * 1. LEVELS: latest survey since 2005, per measure; Bangladesh value and rank
+. *------------------------------------------------------------------------------
+. foreach v in cat10 cat25 fh_total fh_impov fh_large {c -(}
+{txt}  2{com}.     use `S', clear
+{txt}  3{com}.     keep if !missing(`v')
+{txt}  4{com}.     bysort iso3 (svy_year): keep if _n == _N
+{txt}  5{com}.     count
+{txt}  6{com}.     put `V' "levels.`v'.n" r(N)
+{txt}  7{com}.     local n = r(N)
+{txt}  8{com}.     summarize `v', detail
+{txt}  9{com}.     put `V' "levels.`v'.median" r(p50)
+{txt} 10{com}.     summarize svy_year, detail
+{txt} 11{com}.     put `V' "levels.`v'.median_year" r(p50)
+{txt} 12{com}.     egen rk = rank(`v'), field
+{txt} 13{com}.     summarize `v' if iso3 == "BGD"
+{txt} 14{com}.     put `V' "levels.`v'.bgd" r(mean)
+{txt} 15{com}.     summarize svy_year if iso3 == "BGD"
+{txt} 16{com}.     put `V' "levels.`v'.bgd_year" r(mean)
+{txt} 17{com}.     summarize rk if iso3 == "BGD"
+{txt} 18{com}.     put `V' "levels.`v'.bgd_rank" r(mean)
+{txt} 19{com}.     * Bangladesh 2016 value ranked against every other country's latest survey
+.     preserve
+{txt} 20{com}.         use `S', clear
+{txt} 21{com}.         summarize `v' if iso3 == "BGD" & svy_year == 2016
+{txt} 22{com}.         local b16 = r(mean)
+{txt} 23{com}.     restore
+{txt} 24{com}.     put `V' "bgd2016.`v'" `b16'
+{txt} 25{com}.     count if `v' > `b16' & iso3 != "BGD"
+{txt} 26{com}.     put `V' "bgd2016_rank.`v'.rank" r(N) + 1
+{txt} 27{com}.     put `V' "bgd2016_rank.`v'.n" `n'
+{txt} 28{com}. {c )-}
+{txt}(Financial protection survey points, national totals)
+(128 observations deleted)
+(364 observations deleted)
+  {res}109
+
+                            {txt}cat10
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}      .13              0
+{txt} 5%    {res}     1.03            .13
+{txt}10%    {res}     1.52             .2       {txt}Obs         {res}        109
+{txt}25%    {res}      4.3            .28       {txt}Sum of wgt. {res}        109
+
+{txt}50%    {res}     8.18                      {txt}Mean          {res} 9.139083
+                        {txt}Largest       Std. dev.     {res}  7.19996
+{txt}75%    {res}    11.81           26.6
+{txt}90%    {res}    17.86          31.14       {txt}Variance      {res} 51.83943
+{txt}95%    {res}    24.73          31.41       {txt}Skewness      {res} 1.395545
+{txt}99%    {res}    31.41          35.53       {txt}Kurtosis      {res} 5.033695
+
+                          {txt}svy_year
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}     2006           2005
+{txt} 5%    {res}     2008           2006
+{txt}10%    {res}     2012           2007       {txt}Obs         {res}        109
+{txt}25%    {res}     2015           2007       {txt}Sum of wgt. {res}        109
+
+{txt}50%    {res}     2017                      {txt}Mean          {res} 2016.385
+                        {txt}Largest       Std. dev.     {res} 3.503724
+{txt}75%    {res}     2019           2021
+{txt}90%    {res}     2021           2021       {txt}Variance      {res} 12.27608
+{txt}95%    {res}     2021           2021       {txt}Skewness      {res} -1.16196
+{txt}99%    {res}     2021           2021       {txt}Kurtosis      {res} 4.388276
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 7}cat10 {c |}{res}          1       24.42           .      24.42      24.42
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 4}svy_year {c |}{res}          1        2016           .       2016       2016
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 10}rk {c |}{res}          1           7           .          7          7
+{txt}(Financial protection survey points, national totals)
+
+    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 7}cat10 {c |}{res}          1       24.42           .      24.42      24.42
+  6
+{txt}(Financial protection survey points, national totals)
+(128 observations deleted)
+(364 observations deleted)
+  {res}109
+
+                            {txt}cat25
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}        0              0
+{txt} 5%    {res}      .03              0
+{txt}10%    {res}      .13            .01       {txt}Obs         {res}        109
+{txt}25%    {res}      .67            .02       {txt}Sum of wgt. {res}        109
+
+{txt}50%    {res}     1.38                      {txt}Mean          {res} 2.140459
+                        {txt}Largest       Std. dev.     {res}  2.29927
+{txt}75%    {res}     2.95           8.45
+{txt}90%    {res}     5.93           8.86       {txt}Variance      {res} 5.286641
+{txt}95%    {res}     7.03            9.1       {txt}Skewness      {res} 1.969175
+{txt}99%    {res}      9.1          12.48       {txt}Kurtosis      {res}  7.17293
+
+                          {txt}svy_year
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}     2006           2005
+{txt} 5%    {res}     2008           2006
+{txt}10%    {res}     2012           2007       {txt}Obs         {res}        109
+{txt}25%    {res}     2015           2007       {txt}Sum of wgt. {res}        109
+
+{txt}50%    {res}     2017                      {txt}Mean          {res} 2016.385
+                        {txt}Largest       Std. dev.     {res} 3.503724
+{txt}75%    {res}     2019           2021
+{txt}90%    {res}     2021           2021       {txt}Variance      {res} 12.27608
+{txt}95%    {res}     2021           2021       {txt}Skewness      {res} -1.16196
+{txt}99%    {res}     2021           2021       {txt}Kurtosis      {res} 4.388276
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 7}cat25 {c |}{res}          1        8.45           .       8.45       8.45
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 4}svy_year {c |}{res}          1        2016           .       2016       2016
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 10}rk {c |}{res}          1           4           .          4          4
+{txt}(Financial protection survey points, national totals)
+
+    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 7}cat25 {c |}{res}          1        8.45           .       8.45       8.45
+  3
+{txt}(Financial protection survey points, national totals)
+(45 observations deleted)
+(441 observations deleted)
+  {res}115
+
+                          {txt}fh_total
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}  2.08883       .4631142
+{txt} 5%    {res} 6.743035        2.08883
+{txt}10%    {res} 9.637415       3.406863       {txt}Obs         {res}        115
+{txt}25%    {res} 13.03833       4.809303       {txt}Sum of wgt. {res}        115
+
+{txt}50%    {res} 23.51548                      {txt}Mean          {res} 23.80601
+                        {txt}Largest       Std. dev.     {res} 12.44848
+{txt}75%    {res} 33.55432       47.89394
+{txt}90%    {res} 38.84091        52.9657       {txt}Variance      {res} 154.9645
+{txt}95%    {res} 43.28897       56.63509       {txt}Skewness      {res} .4255501
+{txt}99%    {res} 56.63509       60.03372       {txt}Kurtosis      {res} 2.650662
+
+                          {txt}svy_year
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}     2007           2005
+{txt} 5%    {res}     2012           2007
+{txt}10%    {res}     2013           2008       {txt}Obs         {res}        115
+{txt}25%    {res}     2016           2010       {txt}Sum of wgt. {res}        115
+
+{txt}50%    {res}     2019                      {txt}Mean          {res} 2018.191
+                        {txt}Largest       Std. dev.     {res} 3.760122
+{txt}75%    {res}     2021           2023
+{txt}90%    {res}     2022           2023       {txt}Variance      {res} 14.13852
+{txt}95%    {res}     2023           2024       {txt}Skewness      {res}-.8398622
+{txt}99%    {res}     2024           2024       {txt}Kurtosis      {res} 3.746225
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 4}fh_total {c |}{res}          1        41.7           .       41.7       41.7
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 4}svy_year {c |}{res}          1        2022           .       2022       2022
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 10}rk {c |}{res}          1           8           .          8          8
+{txt}(Financial protection survey points, national totals)
+
+    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 4}fh_total {c |}{res}          1       35.76           .      35.76      35.76
+  21
+{txt}(Financial protection survey points, national totals)
+(52 observations deleted)
+(436 observations deleted)
+  {res}113
+
+                          {txt}fh_impov
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}  2.08883       .4631142
+{txt} 5%    {res} 5.302069        2.08883
+{txt}10%    {res} 7.053472       2.331308       {txt}Obs         {res}        113
+{txt}25%    {res}    10.67       4.328249       {txt}Sum of wgt. {res}        113
+
+{txt}50%    {res} 19.33672                      {txt}Mean          {res} 19.97185
+                        {txt}Largest       Std. dev.     {res} 11.56043
+{txt}75%    {res}    27.57       42.20047
+{txt}90%    {res} 33.71931       50.64235       {txt}Variance      {res} 133.6436
+{txt}95%    {res} 40.90715       55.29114       {txt}Skewness      {res} .7664027
+{txt}99%    {res} 55.29114       58.59886       {txt}Kurtosis      {res} 3.538907
+
+                          {txt}svy_year
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}     2007           2005
+{txt} 5%    {res}     2012           2007
+{txt}10%    {res}     2013           2008       {txt}Obs         {res}        113
+{txt}25%    {res}     2016           2010       {txt}Sum of wgt. {res}        113
+
+{txt}50%    {res}     2019                      {txt}Mean          {res} 2018.186
+                        {txt}Largest       Std. dev.     {res} 3.788018
+{txt}75%    {res}     2021           2023
+{txt}90%    {res}     2022           2023       {txt}Variance      {res} 14.34908
+{txt}95%    {res}     2023           2024       {txt}Skewness      {res}-.8325281
+{txt}99%    {res}     2024           2024       {txt}Kurtosis      {res} 3.697214
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 4}fh_impov {c |}{res}          1       27.57           .      27.57      27.57
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 4}svy_year {c |}{res}          1        2022           .       2022       2022
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 10}rk {c |}{res}          1          29           .         29         29
+{txt}(Financial protection survey points, national totals)
+
+    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 4}fh_impov {c |}{res}          1       24.38           .      24.38      24.38
+  38
+{txt}(Financial protection survey points, national totals)
+(52 observations deleted)
+(436 observations deleted)
+  {res}113
+
+                          {txt}fh_large
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}        0              0
+{txt} 5%    {res} .2013458              0
+{txt}10%    {res} .4671676              0       {txt}Obs         {res}        113
+{txt}25%    {res} 1.327589       .0853127       {txt}Sum of wgt. {res}        113
+
+{txt}50%    {res}  2.88456                      {txt}Mean          {res} 3.632092
+                        {txt}Largest       Std. dev.     {res} 3.114796
+{txt}75%    {res} 4.780968       12.47466
+{txt}90%    {res} 7.804739        12.8419       {txt}Variance      {res} 9.701956
+{txt}95%    {res}  9.86167          14.13       {txt}Skewness      {res}  1.47234
+{txt}99%    {res}    14.13       15.85116       {txt}Kurtosis      {res} 5.574027
+
+                          {txt}svy_year
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}     2007           2005
+{txt} 5%    {res}     2012           2007
+{txt}10%    {res}     2013           2008       {txt}Obs         {res}        113
+{txt}25%    {res}     2016           2010       {txt}Sum of wgt. {res}        113
+
+{txt}50%    {res}     2019                      {txt}Mean          {res} 2018.186
+                        {txt}Largest       Std. dev.     {res} 3.788018
+{txt}75%    {res}     2021           2023
+{txt}90%    {res}     2022           2023       {txt}Variance      {res} 14.34908
+{txt}95%    {res}     2023           2024       {txt}Skewness      {res}-.8325281
+{txt}99%    {res}     2024           2024       {txt}Kurtosis      {res} 3.697214
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 4}fh_large {c |}{res}          1       14.13           .      14.13      14.13
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 4}svy_year {c |}{res}          1        2022           .       2022       2022
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 10}rk {c |}{res}          1           2           .          2          2
+{txt}(Financial protection survey points, national totals)
+
+    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 4}fh_large {c |}{res}          1       11.38           .      11.38      11.38
+  3
+{txt}
+{com}. use `S', clear
+{txt}(Financial protection survey points, national totals)
+
+{com}. foreach v in fh_total fh_impov fh_large {c -(}
+{txt}  2{com}.     summarize `v' if iso3 == "BGD" & svy_year == 2022
+{txt}  3{com}.     put `V' "bgd2022.`v'" r(mean)
+{txt}  4{com}. {c )-}
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 4}fh_total {c |}{res}          1        41.7           .       41.7       41.7
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 4}fh_impov {c |}{res}          1       27.57           .      27.57      27.57
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 4}fh_large {c |}{res}          1       14.13           .      14.13      14.13
+{txt}
+{com}. use "$in/fp_surveys.dta", clear
+{txt}(Financial protection survey points, national totals)
+
+{com}. keep if iso3 == "BGD" & !missing(fh_large)
+{txt}(773 observations deleted)
+
+{com}. sort year
+{txt}
+{com}. put `V' "bgd_large_first.year" year[1]
+{txt}
+{com}. put `V' "bgd_large_first.value" fh_large[1]
+{txt}
+{com}. 
+. *------------------------------------------------------------------------------
+. * 2. DESIGN A: original indicator (10%), latest survey since 2005
+. *------------------------------------------------------------------------------
+. use `S', clear
+{txt}(Financial protection survey points, national totals)
+
+{com}. keep if !missing(cat10)
+{txt}(128 observations deleted)
+
+{com}. bysort iso3 (svy_year): keep if _n == _N
+{txt}(364 observations deleted)
+
+{com}. count
+  {res}109
+{txt}
+{com}. put `V' "A.n_all" r(N)
+{txt}
+{com}. summarize svy_year, detail
+
+                          {txt}svy_year
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}     2006           2005
+{txt} 5%    {res}     2008           2006
+{txt}10%    {res}     2012           2007       {txt}Obs         {res}        109
+{txt}25%    {res}     2015           2007       {txt}Sum of wgt. {res}        109
+
+{txt}50%    {res}     2017                      {txt}Mean          {res} 2016.385
+                        {txt}Largest       Std. dev.     {res} 3.503724
+{txt}75%    {res}     2019           2021
+{txt}90%    {res}     2021           2021       {txt}Variance      {res} 12.27608
+{txt}95%    {res}     2021           2021       {txt}Skewness      {res} -1.16196
+{txt}99%    {res}     2021           2021       {txt}Kurtosis      {res} 4.388276
+{txt}
+{com}. put `V' "A.median_svy" r(p50)
+{txt}
+{com}. count if svy_year >= 2015
+  {res}85
+{txt}
+{com}. put `V' "A.n_since2015" r(N)
+{txt}
+{com}. count if svy_year < 2010
+  {res}7
+{txt}
+{com}. put `V' "A.n_pre2010" r(N)
+{txt}
+{com}. tempfile A
+{txt}
+{com}. save `A'
+{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000008.tmp{rm}
+saved
+as .dta format
+{p_end}
+
+{com}. 
+. regress cat10 oop, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}       109
+                                                {txt}F(1, 107)         =  {res}    39.06
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.1932
+                                                {txt}Root MSE          =    {res} 6.4974
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat10{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .1648031{col 26}{space 2}  .026371{col 37}{space 1}    6.25{col 46}{space 3}0.000{col 54}{space 4} .1125257{col 67}{space 3} .2170804
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 2.755236{col 26}{space 2} 1.017648{col 37}{space 1}    2.71{col 46}{space 3}0.008{col 54}{space 4} .7378671{col 67}{space 3} 4.772605
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "A.m0" oop
+{txt}
+{com}. regress cat10 oop lngdp uhc i.reg, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}       107
+                                                {txt}F(8, 98)          =  {res}     7.15
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.2986
+                                                {txt}Root MSE          =    {res} 6.3008
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat10{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .1602436{col 26}{space 2} .0268895{col 37}{space 1}    5.96{col 46}{space 3}0.000{col 54}{space 4} .1068823{col 67}{space 3}  .213605
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2}  2.43185{col 26}{space 2}  1.64002{col 37}{space 1}    1.48{col 46}{space 3}0.141{col 54}{space 4}-.8227161{col 67}{space 3} 5.686417
+{txt}{space 9}uhc {c |}{col 14}{res}{space 2}-.0563324{col 26}{space 2}  .098169{col 37}{space 1}   -0.57{col 46}{space 3}0.567{col 54}{space 4}-.2511455{col 67}{space 3} .1384807
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2} 1.014606{col 26}{space 2} 2.605948{col 37}{space 1}    0.39{col 46}{space 3}0.698{col 54}{space 4}-4.156813{col 67}{space 3} 6.186026
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2} .8394566{col 26}{space 2} 2.414247{col 37}{space 1}    0.35{col 46}{space 3}0.729{col 54}{space 4}-3.951538{col 67}{space 3} 5.630451
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} 4.705559{col 26}{space 2} 3.110251{col 37}{space 1}    1.51{col 46}{space 3}0.134{col 54}{space 4}-1.466633{col 67}{space 3} 10.87775
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} 2.540366{col 26}{space 2} 2.826128{col 37}{space 1}    0.90{col 46}{space 3}0.371{col 54}{space 4}-3.067992{col 67}{space 3} 8.148724
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2}-.1953281{col 26}{space 2} 1.732143{col 37}{space 1}   -0.11{col 46}{space 3}0.910{col 54}{space 4} -3.63271{col 67}{space 3} 3.242054
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}-16.34657{col 26}{space 2} 10.25121{col 37}{space 1}   -1.59{col 46}{space 3}0.114{col 54}{space 4}-36.68976{col 67}{space 3} 3.996627
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "A.m1" oop
+{txt}
+{com}. gen byte insA = e(sample)
+{txt}
+{com}. regress cat25 oop lngdp uhc i.reg, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}       107
+                                                {txt}F(8, 98)          =  {res}     3.20
+                                                {txt}Prob > F          = {res}    0.0029
+                                                {txt}R-squared         = {res}    0.1810
+                                                {txt}Root MSE          =    {res} 2.1759
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat25{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2}  .036146{col 26}{space 2} .0095043{col 37}{space 1}    3.80{col 46}{space 3}0.000{col 54}{space 4} .0172849{col 67}{space 3} .0550071
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} .6559502{col 26}{space 2} .6094526{col 37}{space 1}    1.08{col 46}{space 3}0.284{col 54}{space 4}-.5534886{col 67}{space 3} 1.865389
+{txt}{space 9}uhc {c |}{col 14}{res}{space 2}-.0253689{col 26}{space 2} .0353738{col 37}{space 1}   -0.72{col 46}{space 3}0.475{col 54}{space 4}-.0955671{col 67}{space 3} .0448293
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2}-.6427534{col 26}{space 2}  .805189{col 37}{space 1}   -0.80{col 46}{space 3}0.427{col 54}{space 4}-2.240625{col 67}{space 3} .9551179
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2} .2121196{col 26}{space 2} .8077895{col 37}{space 1}    0.26{col 46}{space 3}0.793{col 54}{space 4}-1.390912{col 67}{space 3} 1.815152
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} .5523342{col 26}{space 2} .8792941{col 37}{space 1}    0.63{col 46}{space 3}0.531{col 54}{space 4}-1.192596{col 67}{space 3} 2.297265
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} 1.444437{col 26}{space 2} 1.152142{col 37}{space 1}    1.25{col 46}{space 3}0.213{col 54}{space 4}-.8419504{col 67}{space 3} 3.730825
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2} -.529392{col 26}{space 2} .6127399{col 37}{space 1}   -0.86{col 46}{space 3}0.390{col 54}{space 4}-1.745354{col 67}{space 3} .6865704
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}  -3.5016{col 26}{space 2} 3.751177{col 37}{space 1}   -0.93{col 46}{space 3}0.353{col 54}{space 4}-10.94569{col 67}{space 3} 3.942488
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "A.m25" oop
+{txt}
+{com}. regress cat10 gov lngdp uhc i.reg, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}       107
+                                                {txt}F(8, 98)          =  {res}     6.95
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.3023
+                                                {txt}Root MSE          =    {res} 6.2841
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat10{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}gov {c |}{col 14}{res}{space 2}-.2018864{col 26}{space 2} .0339823{col 37}{space 1}   -5.94{col 46}{space 3}0.000{col 54}{space 4}-.2693232{col 67}{space 3}-.1344497
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} 4.852234{col 26}{space 2}  1.70071{col 37}{space 1}    2.85{col 46}{space 3}0.005{col 54}{space 4}  1.47723{col 67}{space 3} 8.227237
+{txt}{space 9}uhc {c |}{col 14}{res}{space 2}-.1239475{col 26}{space 2} .0938444{col 37}{space 1}   -1.32{col 46}{space 3}0.190{col 54}{space 4}-.3101787{col 67}{space 3} .0622837
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2} 2.204317{col 26}{space 2} 2.621754{col 37}{space 1}    0.84{col 46}{space 3}0.403{col 54}{space 4}-2.998468{col 67}{space 3} 7.407103
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2} .8798789{col 26}{space 2} 2.577731{col 37}{space 1}    0.34{col 46}{space 3}0.734{col 54}{space 4}-4.235545{col 67}{space 3} 5.995303
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} 4.670063{col 26}{space 2} 3.090665{col 37}{space 1}    1.51{col 46}{space 3}0.134{col 54}{space 4} -1.46326{col 67}{space 3} 10.80339
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} 2.629538{col 26}{space 2} 2.891982{col 37}{space 1}    0.91{col 46}{space 3}0.365{col 54}{space 4}-3.109506{col 67}{space 3} 8.368581
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2}-2.528166{col 26}{space 2} 1.854984{col 37}{space 1}   -1.36{col 46}{space 3}0.176{col 54}{space 4}-6.209321{col 67}{space 3} 1.152989
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}-18.59097{col 26}{space 2} 10.69013{col 37}{space 1}   -1.74{col 46}{space 3}0.085{col 54}{space 4}-39.80519{col 67}{space 3} 2.623253
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "A.mgov" gov
+{txt}
+{com}. regress cat10 gov oop lngdp uhc i.reg, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}       107
+                                                {txt}F(9, 97)          =  {res}     7.21
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.3186
+                                                {txt}Root MSE          =    {res} 6.2421
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat10{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}gov {c |}{col 14}{res}{space 2}   -.1184{col 26}{space 2} .0540022{col 37}{space 1}   -2.19{col 46}{space 3}0.031{col 54}{space 4}-.2255793{col 67}{space 3}-.0112207
+{txt}{space 9}oop {c |}{col 14}{res}{space 2} .0859129{col 26}{space 2}  .043276{col 37}{space 1}    1.99{col 46}{space 3}0.050{col 54}{space 4}  .000022{col 67}{space 3} .1718038
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} 3.861893{col 26}{space 2} 1.934128{col 37}{space 1}    2.00{col 46}{space 3}0.049{col 54}{space 4} .0231837{col 67}{space 3} 7.700602
+{txt}{space 9}uhc {c |}{col 14}{res}{space 2}-.0850108{col 26}{space 2} .1018878{col 37}{space 1}   -0.83{col 46}{space 3}0.406{col 54}{space 4}  -.28723{col 67}{space 3} .1172083
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2} 1.441926{col 26}{space 2} 2.689672{col 37}{space 1}    0.54{col 46}{space 3}0.593{col 54}{space 4}-3.896328{col 67}{space 3}  6.78018
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2} .7773794{col 26}{space 2} 2.496683{col 37}{space 1}    0.31{col 46}{space 3}0.756{col 54}{space 4}-4.177844{col 67}{space 3} 5.732603
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} 4.409835{col 26}{space 2} 3.075083{col 37}{space 1}    1.43{col 46}{space 3}0.155{col 54}{space 4}-1.693354{col 67}{space 3} 10.51302
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} 2.433078{col 26}{space 2} 2.825254{col 37}{space 1}    0.86{col 46}{space 3}0.391{col 54}{space 4} -3.17427{col 67}{space 3} 8.040426
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2}-1.425831{col 26}{space 2} 1.732157{col 37}{space 1}   -0.82{col 46}{space 3}0.412{col 54}{space 4}-4.863684{col 67}{space 3} 2.012022
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}-19.12202{col 26}{space 2} 10.62869{col 37}{space 1}   -1.80{col 46}{space 3}0.075{col 54}{space 4}-40.21703{col 67}{space 3}  1.97299
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "A.jgov" gov
+{txt}
+{com}. putb `V' "A.joop" oop
+{txt}
+{com}. correlate gov oop if insA
+{txt}(obs=107)
+
+             {c |}      gov      oop
+{hline 13}{c +}{hline 18}
+         gov {c |}{res}   1.0000
+         {txt}oop {c |}{res}  -0.6463   1.0000
+
+{txt}
+{com}. put `V' "A.r_gov_oop" r(rho)
+{txt}
+{com}. regress cat10 uhc lngdp if insA, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}       107
+                                                {txt}F(2, 104)         =  {res}     2.93
+                                                {txt}Prob > F          = {res}    0.0576
+                                                {txt}R-squared         = {res}    0.0447
+                                                {txt}Root MSE          =    {res} 7.1376
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat10{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}uhc {c |}{col 14}{res}{space 2}-.0687564{col 26}{space 2} .0971557{col 37}{space 1}   -0.71{col 46}{space 3}0.481{col 54}{space 4}-.2614199{col 67}{space 3}  .123907
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} 2.596492{col 26}{space 2} 1.573135{col 37}{space 1}    1.65{col 46}{space 3}0.102{col 54}{space 4}-.5230942{col 67}{space 3} 5.716078
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-10.04507{col 26}{space 2} 9.011919{col 37}{space 1}   -1.11{col 46}{space 3}0.268{col 54}{space 4}-27.91604{col 67}{space 3} 7.825906
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "A.muhc" uhc
+{txt}
+{com}. gen shares = oop + gov + ext
+{txt}(3 missing values generated)
+
+{com}. summarize shares if insA, detail
+
+                           {txt}shares
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res} 66.27255       62.95872
+{txt} 5%    {res} 79.49504       66.27255
+{txt}10%    {res} 84.96069       67.08258       {txt}Obs         {res}        104
+{txt}25%    {res} 90.00931        72.8127       {txt}Sum of wgt. {res}        104
+
+{txt}50%    {res}  94.0971                      {txt}Mean          {res} 92.55009
+                        {txt}Largest       Std. dev.     {res} 7.280146
+{txt}75%    {res} 97.78242       99.99951
+{txt}90%    {res} 99.33768            100       {txt}Variance      {res} 53.00053
+{txt}95%    {res} 99.97474       100.0274       {txt}Skewness      {res}-1.811282
+{txt}99%    {res} 100.0274       100.1917       {txt}Kurtosis      {res} 7.042705
+{txt}
+{com}. put `V' "data.shares_sum_median" r(p50)
+{txt}
+{com}. * leave-one-out (jackknife) range of the OOP coefficient
+. keep if insA
+{txt}(2 observations deleted)
+
+{com}. local lo = .
+{txt}
+{com}. local hi = .
+{txt}
+{com}. forvalues i = 1/`=_N' {c -(}
+{txt}  2{com}.     quietly regress cat10 oop lngdp uhc i.reg if _n != `i'
+{txt}  3{com}.     local lo = min(`lo', _b[oop])
+{txt}  4{com}.     local hi = max(`hi', _b[oop])
+{txt}  5{com}. {c )-}
+{txt}
+{com}. put `V' "A.jk_min" `lo'
+{txt}
+{com}. put `V' "A.jk_max" `hi'
+{txt}
+{com}. tempfile dA
+{txt}
+{com}. save `dA'
+{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_000009.tmp{rm}
+saved
+as .dta format
+{p_end}
+
+{com}. 
+. *------------------------------------------------------------------------------
+. * 3. SAME-SURVEY COMPARISON: both indicators from one survey (latest such)
+. *------------------------------------------------------------------------------
+. use `S', clear
+{txt}(Financial protection survey points, national totals)
+
+{com}. keep if !missing(cat10, fh_total)
+{txt}(173 observations deleted)
+
+{com}. bysort iso3 (svy_year): keep if _n == _N
+{txt}(324 observations deleted)
+
+{com}. count
+  {res}104
+{txt}
+{com}. put `V' "pairs.n" r(N)
+{txt}
+{com}. summarize svy_year, detail
+
+                          {txt}svy_year
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}     2006           2005
+{txt} 5%    {res}     2008           2006
+{txt}10%    {res}     2011           2007       {txt}Obs         {res}        104
+{txt}25%    {res}     2015           2007       {txt}Sum of wgt. {res}        104
+
+{txt}50%    {res}     2017                      {txt}Mean          {res} 2016.087
+                        {txt}Largest       Std. dev.     {res} 3.503426
+{txt}75%    {res}     2018           2021
+{txt}90%    {res}     2020           2021       {txt}Variance      {res} 12.27399
+{txt}95%    {res}     2021           2021       {txt}Skewness      {res}-1.139644
+{txt}99%    {res}     2021           2021       {txt}Kurtosis      {res} 4.280304
+{txt}
+{com}. put `V' "pairs.median_year" r(p50)
+{txt}
+{com}. foreach v in cat25 fh_total fh_impov fh_large {c -(}
+{txt}  2{com}.     spearman cat10 `v'
+{txt}  3{com}.     put `V' "pairs.rho_cat10_`v'" r(rho)
+{txt}  4{com}. {c )-}
+
+{txt} Number of obs = {res}    104
+{txt}Spearman's rho = {res}      0.8927
+
+{txt}Test of H0: cat10 and cat25 are independent
+    Prob > |t| = {res}      0.0000
+
+{txt} Number of obs = {res}    104
+{txt}Spearman's rho = {res}      0.2579
+
+{txt}Test of H0: cat10 and fh_total are independent
+    Prob > |t| = {res}      0.0082
+
+{txt} Number of obs = {res}    102
+{txt}Spearman's rho = {res}      0.0928
+
+{txt}Test of H0: cat10 and fh_impov are independent
+    Prob > |t| = {res}      0.3534
+
+{txt} Number of obs = {res}    102
+{txt}Spearman's rho = {res}      0.8757
+
+{txt}Test of H0: cat10 and fh_large are independent
+    Prob > |t| = {res}      0.0000
+{txt}
+{com}. spearman cat25 fh_large
+
+{txt} Number of obs = {res}    102
+{txt}Spearman's rho = {res}      0.7405
+
+{txt}Test of H0: cat25 and fh_large are independent
+    Prob > |t| = {res}      0.0000
+{txt}
+{com}. put `V' "pairs.rho_cat25_fh_large" r(rho)
+{txt}
+{com}. export delimited iso3 svy_year income cat10 cat25 fh_total fh_impov fh_large ///
+>     using "$out/pairs_same_survey.csv", replace
+{res}{txt}{p 0 4 2}
+(file {bf}
+C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/pairs_same_survey.csv{rm}
+not found)
+{p_end}
+{txt}file {bf:C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/pairs_same_survey.csv} saved
+
+{com}. tempfile P
+{txt}
+{com}. save `P'
+{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_00000a.tmp{rm}
+saved
+as .dta format
+{p_end}
+
+{com}. 
+. * medians by income group, reclassification, Pakistan
+. foreach g in LIC LMC UMC {c -(}
+{txt}  2{com}.     count if income == "`g'"
+{txt}  3{com}.     put `V' "bygroup.`g'.n" r(N)
+{txt}  4{com}.     foreach v in cat10 fh_total fh_impov fh_large {c -(}
+{txt}  5{com}.         summarize `v' if income == "`g'", detail
+{txt}  6{com}.         put `V' "bygroup.`g'.`v'" r(p50)
+{txt}  7{com}.     {c )-}
+{txt}  8{com}. {c )-}
+  {res}23
+
+                            {txt}cat10
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}      .13            .13
+{txt} 5%    {res}       .2             .2
+{txt}10%    {res}     1.15           1.15       {txt}Obs         {res}         23
+{txt}25%    {res}     2.91            1.7       {txt}Sum of wgt. {res}         23
+
+{txt}50%    {res}     6.52                      {txt}Mean          {res} 7.456522
+                        {txt}Largest       Std. dev.     {res} 6.358414
+{txt}75%    {res}    11.71          15.27
+{txt}90%    {res}    15.83          15.83       {txt}Variance      {res} 40.42942
+{txt}95%    {res}     16.4           16.4       {txt}Skewness      {res} 1.231766
+{txt}99%    {res}    26.08          26.08       {txt}Kurtosis      {res} 4.255257
+
+                          {txt}fh_total
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res} 16.02082       16.02082
+{txt} 5%    {res} 21.19252       21.19252
+{txt}10%    {res} 25.61961       25.61961       {txt}Obs         {res}         23
+{txt}25%    {res} 33.36664       29.94252       {txt}Sum of wgt. {res}         23
+
+{txt}50%    {res} 35.06488                      {txt}Mean          {res} 38.26086
+                        {txt}Largest       Std. dev.     {res}  11.1483
+{txt}75%    {res} 43.35766       53.15396
+{txt}90%    {res} 56.31071       56.31071       {txt}Variance      {res} 124.2845
+{txt}95%    {res} 56.63509       56.63509       {txt}Skewness      {res}    .2467
+{txt}99%    {res} 60.03372       60.03372       {txt}Kurtosis      {res} 2.679193
+
+                          {txt}fh_impov
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res} 12.03785       12.03785
+{txt} 5%    {res} 19.72639       19.72639
+{txt}10%    {res} 24.86718       24.86718       {txt}Obs         {res}         21
+{txt}25%    {res} 29.35956       25.12268       {txt}Sum of wgt. {res}         21
+
+{txt}50%    {res}  32.6428                      {txt}Mean          {res} 35.45165
+                        {txt}Largest       Std. dev.     {res} 11.76327
+{txt}75%    {res} 40.90715       52.05671
+{txt}90%    {res} 52.46296       52.46296       {txt}Variance      {res} 138.3745
+{txt}95%    {res} 55.29114       55.29114       {txt}Skewness      {res} .3302679
+{txt}99%    {res} 58.59886       58.59886       {txt}Kurtosis      {res} 2.728187
+
+                          {txt}fh_large
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res} .4969259       .4969259
+{txt} 5%    {res} .5829566       .5829566
+{txt}10%    {res} .6909948       .6909948       {txt}Obs         {res}         21
+{txt}25%    {res} 1.343947       .7967332       {txt}Sum of wgt. {res}         21
+
+{txt}50%    {res} 2.807503                      {txt}Mean          {res} 3.098054
+                        {txt}Largest       Std. dev.     {res} 2.289499
+{txt}75%    {res} 4.599403       5.295506
+{txt}90%    {res} 6.128558       6.128558       {txt}Variance      {res} 5.241806
+{txt}95%    {res} 6.986791       6.986791       {txt}Skewness      {res} .6503921
+{txt}99%    {res} 8.131894       8.131894       {txt}Kurtosis      {res} 2.305097
+  38
+
+                            {txt}cat10
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}        0              0
+{txt} 5%    {res}      .28            .28
+{txt}10%    {res}     1.47           1.33       {txt}Obs         {res}         38
+{txt}25%    {res}     4.58           1.47       {txt}Sum of wgt. {res}         38
+
+{txt}50%    {res}    8.905                      {txt}Mean          {res} 10.22184
+                        {txt}Largest       Std. dev.     {res} 8.346388
+{txt}75%    {res}    13.68          24.42
+{txt}90%    {res}    24.42          24.73       {txt}Variance      {res} 69.66219
+{txt}95%    {res}    31.14          31.14       {txt}Skewness      {res}  1.23148
+{txt}99%    {res}    35.53          35.53       {txt}Kurtosis      {res} 4.304008
+
+                          {txt}fh_total
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res} .7644426       .7644426
+{txt} 5%    {res} 4.703228       4.703228
+{txt}10%    {res} 11.63262       6.517855       {txt}Obs         {res}         38
+{txt}25%    {res} 18.95315       11.63262       {txt}Sum of wgt. {res}         38
+
+{txt}50%    {res} 27.04469                      {txt}Mean          {res} 26.29623
+                        {txt}Largest       Std. dev.     {res} 11.00112
+{txt}75%    {res} 34.68074       39.52847
+{txt}90%    {res} 39.52847       40.48701       {txt}Variance      {res} 121.0246
+{txt}95%    {res} 42.78549       42.78549       {txt}Skewness      {res}-.4075464
+{txt}99%    {res} 47.16432       47.16432       {txt}Kurtosis      {res} 2.552958
+
+                          {txt}fh_impov
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res} .6990281       .6990281
+{txt} 5%    {res} 3.957204       3.957204
+{txt}10%    {res}  9.69444       5.739277       {txt}Obs         {res}         38
+{txt}25%    {res} 15.12068        9.69444       {txt}Sum of wgt. {res}         38
+
+{txt}50%    {res} 23.64197                      {txt}Mean          {res} 22.07952
+                        {txt}Largest       Std. dev.     {res} 9.593598
+{txt}75%    {res} 28.48716       33.71931
+{txt}90%    {res} 33.71931        34.8016       {txt}Variance      {res} 92.03713
+{txt}95%    {res} 36.65572       36.65572       {txt}Skewness      {res} -.180553
+{txt}99%    {res} 43.78477       43.78477       {txt}Kurtosis      {res} 2.689599
+
+                          {txt}fh_large
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res} .0654144       .0654144
+{txt} 5%    {res} .0853127       .0853127
+{txt}10%    {res} .6769688       .2698568       {txt}Obs         {res}         38
+{txt}25%    {res} 1.802152       .6769688       {txt}Sum of wgt. {res}         38
+
+{txt}50%    {res} 3.653388                      {txt}Mean          {res} 4.216713
+                        {txt}Largest       Std. dev.     {res} 3.217755
+{txt}75%    {res} 6.035015       7.997007
+{txt}90%    {res} 7.997007       10.49526       {txt}Variance      {res} 10.35395
+{txt}95%    {res}    11.38          11.38       {txt}Skewness      {res}  1.12605
+{txt}99%    {res} 14.21188       14.21188       {txt}Kurtosis      {res} 4.231898
+  43
+
+                            {txt}cat10
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}     1.03           1.03
+{txt} 5%    {res}     2.05           1.97
+{txt}10%    {res}     2.29           2.05       {txt}Obs         {res}         43
+{txt}25%    {res}     4.32           2.22       {txt}Sum of wgt. {res}         43
+
+{txt}50%    {res}      8.2                      {txt}Mean          {res} 9.111628
+                        {txt}Largest       Std. dev.     {res} 6.367446
+{txt}75%    {res}    11.45          19.57
+{txt}90%    {res}    15.36          23.18       {txt}Variance      {res} 40.54437
+{txt}95%    {res}    23.18          24.33       {txt}Skewness      {res} 1.490959
+{txt}99%    {res}    31.41          31.41       {txt}Kurtosis      {res} 5.578048
+
+                          {txt}fh_total
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res} 3.406863       3.406863
+{txt} 5%    {res} 9.057819        8.79367
+{txt}10%    {res} 9.769879       9.057819       {txt}Obs         {res}         43
+{txt}25%    {res} 11.81645        9.49521       {txt}Sum of wgt. {res}         43
+
+{txt}50%    {res} 15.04034                      {txt}Mean          {res} 18.18721
+                        {txt}Largest       Std. dev.     {res} 8.264522
+{txt}75%    {res} 24.03656       33.17975
+{txt}90%    {res} 30.88926       33.55432       {txt}Variance      {res} 68.30233
+{txt}95%    {res} 33.55432       35.20739       {txt}Skewness      {res} .6466647
+{txt}99%    {res} 35.86085       35.86085       {txt}Kurtosis      {res} 2.390702
+
+                          {txt}fh_impov
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res} 2.331308       2.331308
+{txt} 5%    {res} 5.333425       4.328249
+{txt}10%    {res}  6.66238       5.333425       {txt}Obs         {res}         43
+{txt}25%    {res}   8.8242       6.389082       {txt}Sum of wgt. {res}         43
+
+{txt}50%    {res} 12.27255                      {txt}Mean          {res} 14.45417
+                        {txt}Largest       Std. dev.     {res} 7.492544
+{txt}75%    {res} 20.04591          24.78
+{txt}90%    {res} 24.63244       27.62591       {txt}Variance      {res} 56.13822
+{txt}95%    {res} 27.62591       32.34423       {txt}Skewness      {res} .7428662
+{txt}99%    {res} 33.46769       33.46769       {txt}Kurtosis      {res} 2.869977
+
+                          {txt}fh_large
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res} .5707257       .5707257
+{txt} 5%    {res} 1.006904        .935602
+{txt}10%    {res}     1.25       1.006904       {txt}Obs         {res}         43
+{txt}25%    {res} 1.963694       1.075554       {txt}Sum of wgt. {res}         43
+
+{txt}50%    {res} 3.001902                      {txt}Mean          {res} 3.733969
+                        {txt}Largest       Std. dev.     {res} 2.594666
+{txt}75%    {res}  4.72957       8.547309
+{txt}90%    {res} 6.626896       9.004148       {txt}Variance      {res} 6.732292
+{txt}95%    {res} 9.004148       10.59905       {txt}Skewness      {res} 1.524036
+{txt}99%    {res} 12.47466       12.47466       {txt}Kurtosis      {res} 5.363736
+{txt}
+{com}. summarize cat10, detail
+
+                            {txt}cat10
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}      .13              0
+{txt} 5%    {res}     1.15            .13
+{txt}10%    {res}      1.7             .2       {txt}Obs         {res}        104
+{txt}25%    {res}     4.02            .28       {txt}Sum of wgt. {res}        104
+
+{txt}50%    {res}    8.185                      {txt}Mean          {res}  9.15125
+                        {txt}Largest       Std. dev.     {res} 7.159414
+{txt}75%    {res}    12.14          26.08
+{txt}90%    {res}    17.86          31.14       {txt}Variance      {res} 51.25721
+{txt}95%    {res}    24.42          31.41       {txt}Skewness      {res} 1.393573
+{txt}99%    {res}    31.41          35.53       {txt}Kurtosis      {res} 5.117467
+{txt}
+{com}. gen byte old_low = cat10 < r(p50)
+{txt}
+{com}. summarize fh_total, detail
+
+                          {txt}fh_total
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res} 3.406863       .7644426
+{txt} 5%    {res} 9.057819       3.406863
+{txt}10%    {res} 11.19347       4.703228       {txt}Obs         {res}        104
+{txt}25%    {res} 14.67069       6.517855       {txt}Sum of wgt. {res}        104
+
+{txt}50%    {res} 25.26545                      {txt}Mean          {res} 25.58949
+                        {txt}Largest       Std. dev.     {res} 12.52142
+{txt}75%    {res} 34.49163       53.15396
+{txt}90%    {res} 40.48701       56.31071       {txt}Variance      {res} 156.7859
+{txt}95%    {res} 47.16432       56.63509       {txt}Skewness      {res} .4064629
+{txt}99%    {res} 56.63509       60.03372       {txt}Kurtosis      {res} 2.734278
+{txt}
+{com}. gen byte new_high = fh_total >= r(p50)
+{txt}
+{com}. count
+  {res}104
+{txt}
+{com}. put `V' "reclass.n" r(N)
+{txt}
+{com}. count if old_low & new_high
+  {res}23
+{txt}
+{com}. put `V' "reclass.n_switch_bad" r(N)
+{txt}
+{com}. count if !old_low & !new_high
+  {res}23
+{txt}
+{com}. put `V' "reclass.n_switch_good" r(N)
+{txt}
+{com}. count if old_low & new_high & income == "LIC"
+  {res}13
+{txt}
+{com}. put `V' "reclass.lic_switch" r(N)
+{txt}
+{com}. count if income == "LIC"
+  {res}23
+{txt}
+{com}. put `V' "reclass.lic_n" r(N)
+{txt}
+{com}. foreach v in svy_year cat10 fh_total {c -(}
+{txt}  2{com}.     summarize `v' if iso3 == "PAK"
+{txt}  3{com}.     local k = cond("`v'" == "svy_year", "year", "`v'")
+{txt}  4{com}.     put `V' "pak.`k'" r(mean)
+{txt}  5{com}. {c )-}
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 4}svy_year {c |}{res}          1        2018           .       2018       2018
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 7}cat10 {c |}{res}          1        5.39           .       5.39       5.39
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 4}fh_total {c |}{res}          1    33.87539           .   33.87539   33.87539
+{txt}
+{com}. 
+. * income gradient of each indicator (region effects)
+. keep if !missing(lngdp)
+{txt}(2 observations deleted)
+
+{com}. count
+  {res}102
+{txt}
+{com}. put `V' "grad.n" r(N)
+{txt}
+{com}. foreach v in cat10 cat25 fh_total fh_impov fh_large {c -(}
+{txt}  2{com}.     spearman `v' lngdp
+{txt}  3{com}.     put `V' "grad.`v'.rho" r(rho)
+{txt}  4{com}.     regress `v' lngdp i.reg, vce(robust)
+{txt}  5{com}.     putb `V' "grad.`v'" lngdp
+{txt}  6{com}. {c )-}
+
+{txt} Number of obs = {res}    102
+{txt}Spearman's rho = {res}      0.1898
+
+{txt}Test of H0: cat10 and lngdp are independent
+    Prob > |t| = {res}      0.0560
+
+{txt}Linear regression                               Number of obs     = {res}       102
+                                                {txt}F(6, 95)          =  {res}     1.89
+                                                {txt}Prob > F          = {res}    0.0896
+                                                {txt}R-squared         = {res}    0.1057
+                                                {txt}Root MSE          =    {res}  7.015
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat10{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 7}lngdp {c |}{col 14}{res}{space 2}  .562034{col 26}{space 2} 1.076868{col 37}{space 1}    0.52{col 46}{space 3}0.603{col 54}{space 4} -1.57582{col 67}{space 3} 2.699888
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2} 1.504302{col 26}{space 2} 3.041481{col 37}{space 1}    0.49{col 46}{space 3}0.622{col 54}{space 4}-4.533802{col 67}{space 3} 7.542405
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2}-.4141021{col 26}{space 2} 2.728978{col 37}{space 1}   -0.15{col 46}{space 3}0.880{col 54}{space 4}-5.831808{col 67}{space 3} 5.003604
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} 4.214512{col 26}{space 2} 3.624048{col 37}{space 1}    1.16{col 46}{space 3}0.248{col 54}{space 4}-2.980133{col 67}{space 3} 11.40916
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} 2.934437{col 26}{space 2} 3.812721{col 37}{space 1}    0.77{col 46}{space 3}0.443{col 54}{space 4}-4.634771{col 67}{space 3} 10.50365
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2}-1.943982{col 26}{space 2} 2.635367{col 37}{space 1}   -0.74{col 46}{space 3}0.463{col 54}{space 4}-7.175848{col 67}{space 3} 3.287884
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} 4.090167{col 26}{space 2} 9.699561{col 37}{space 1}    0.42{col 46}{space 3}0.674{col 54}{space 4} -15.1659{col 67}{space 3} 23.34623
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt} Number of obs = {res}    102
+{txt}Spearman's rho = {res}      0.1703
+
+{txt}Test of H0: cat25 and lngdp are independent
+    Prob > |t| = {res}      0.0871
+
+{txt}Linear regression                               Number of obs     = {res}       102
+                                                {txt}F(6, 95)          =  {res}     1.88
+                                                {txt}Prob > F          = {res}    0.0920
+                                                {txt}R-squared         = {res}    0.0729
+                                                {txt}Root MSE          =    {res} 2.2654
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat25{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 7}lngdp {c |}{col 14}{res}{space 2} .1050733{col 26}{space 2} .3695439{col 37}{space 1}    0.28{col 46}{space 3}0.777{col 54}{space 4}-.6285641{col 67}{space 3} .8387107
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2}-.6872987{col 26}{space 2} .9287634{col 37}{space 1}   -0.74{col 46}{space 3}0.461{col 54}{space 4}-2.531127{col 67}{space 3}  1.15653
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2}-.1852224{col 26}{space 2} .8973348{col 37}{space 1}   -0.21{col 46}{space 3}0.837{col 54}{space 4}-1.966657{col 67}{space 3} 1.596212
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} .3133061{col 26}{space 2} .9991509{col 37}{space 1}    0.31{col 46}{space 3}0.755{col 54}{space 4}-1.670259{col 67}{space 3} 2.296871
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} 1.139542{col 26}{space 2} 1.261851{col 37}{space 1}    0.90{col 46}{space 3}0.369{col 54}{space 4}-1.365549{col 67}{space 3} 3.644634
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2}-.9004994{col 26}{space 2} .8511158{col 37}{space 1}   -1.06{col 46}{space 3}0.293{col 54}{space 4}-2.590178{col 67}{space 3}  .789179
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}  1.54911{col 26}{space 2} 3.338534{col 37}{space 1}    0.46{col 46}{space 3}0.644{col 54}{space 4}-5.078717{col 67}{space 3} 8.176937
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt} Number of obs = {res}    102
+{txt}Spearman's rho = {res}     -0.5875
+
+{txt}Test of H0: fh_total and lngdp are independent
+    Prob > |t| = {res}      0.0000
+
+{txt}Linear regression                               Number of obs     = {res}       102
+                                                {txt}F(6, 95)          =  {res}    12.77
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.4105
+                                                {txt}Root MSE          =    {res} 9.9802
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}    fh_total{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 7}lngdp {c |}{col 14}{res}{space 2}-6.780626{col 26}{space 2} 1.725372{col 37}{space 1}   -3.93{col 46}{space 3}0.000{col 54}{space 4}-10.20592{col 67}{space 3} -3.35533
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2}-2.130127{col 26}{space 2} 4.332116{col 37}{space 1}   -0.49{col 46}{space 3}0.624{col 54}{space 4}-10.73047{col 67}{space 3}  6.47021
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2} 1.233164{col 26}{space 2} 4.445233{col 37}{space 1}    0.28{col 46}{space 3}0.782{col 54}{space 4}-7.591741{col 67}{space 3} 10.05807
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} 2.170012{col 26}{space 2} 5.091595{col 37}{space 1}    0.43{col 46}{space 3}0.671{col 54}{space 4}-7.938083{col 67}{space 3} 12.27811
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} 1.801074{col 26}{space 2}  5.96243{col 37}{space 1}    0.30{col 46}{space 3}0.763{col 54}{space 4}-10.03585{col 67}{space 3}   13.638
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2} 5.679953{col 26}{space 2} 4.883614{col 37}{space 1}    1.16{col 46}{space 3}0.248{col 54}{space 4}-4.015246{col 67}{space 3} 15.37515
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} 83.11003{col 26}{space 2} 17.16442{col 37}{space 1}    4.84{col 46}{space 3}0.000{col 54}{space 4} 49.03435{col 67}{space 3} 117.1857
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt} Number of obs = {res}    100
+{txt}Spearman's rho = {res}     -0.6315
+
+{txt}Test of H0: fh_impov and lngdp are independent
+    Prob > |t| = {res}      0.0000
+
+{txt}Linear regression                               Number of obs     = {res}       100
+                                                {txt}F(6, 93)          =  {res}    17.76
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.5061
+                                                {txt}Root MSE          =    {res} 8.8145
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}    fh_impov{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 7}lngdp {c |}{col 14}{res}{space 2}-6.614407{col 26}{space 2} 1.679894{col 37}{space 1}   -3.94{col 46}{space 3}0.000{col 54}{space 4}-9.950343{col 67}{space 3} -3.27847
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2}-3.095396{col 26}{space 2} 3.757798{col 37}{space 1}   -0.82{col 46}{space 3}0.412{col 54}{space 4}-10.55764{col 67}{space 3} 4.366846
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2} 1.818319{col 26}{space 2} 3.917006{col 37}{space 1}    0.46{col 46}{space 3}0.644{col 54}{space 4}-5.960078{col 67}{space 3} 9.596716
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} .2721221{col 26}{space 2} 4.259702{col 37}{space 1}    0.06{col 46}{space 3}0.949{col 54}{space 4}-8.186802{col 67}{space 3} 8.731046
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} .2306352{col 26}{space 2} 4.797809{col 37}{space 1}    0.05{col 46}{space 3}0.962{col 54}{space 4}-9.296864{col 67}{space 3} 9.758134
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2} 7.060845{col 26}{space 2}  4.34491{col 37}{space 1}    1.63{col 46}{space 3}0.108{col 54}{space 4}-1.567286{col 67}{space 3} 15.68898
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}  77.6047{col 26}{space 2} 16.49418{col 37}{space 1}    4.70{col 46}{space 3}0.000{col 54}{space 4} 44.85052{col 67}{space 3} 110.3589
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt} Number of obs = {res}    100
+{txt}Spearman's rho = {res}      0.1049
+
+{txt}Test of H0: fh_large and lngdp are independent
+    Prob > |t| = {res}      0.2991
+
+{txt}Linear regression                               Number of obs     = {res}       100
+                                                {txt}F(6, 93)          =  {res}     2.19
+                                                {txt}Prob > F          = {res}    0.0504
+                                                {txt}R-squared         = {res}    0.1424
+                                                {txt}Root MSE          =    {res}  2.683
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}    fh_large{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 7}lngdp {c |}{col 14}{res}{space 2}-.1482187{col 26}{space 2} .3622698{col 37}{space 1}   -0.41{col 46}{space 3}0.683{col 54}{space 4}-.8676147{col 67}{space 3} .5711773
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2} .9534906{col 26}{space 2} 1.217877{col 37}{space 1}    0.78{col 46}{space 3}0.436{col 54}{space 4}-1.464971{col 67}{space 3} 3.371953
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2}-.5922895{col 26}{space 2}   1.0948{col 37}{space 1}   -0.54{col 46}{space 3}0.590{col 54}{space 4}-2.766346{col 67}{space 3} 1.581767
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} 1.591768{col 26}{space 2} 1.505731{col 37}{space 1}    1.06{col 46}{space 3}0.293{col 54}{space 4}-1.398314{col 67}{space 3} 4.581851
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} 1.569426{col 26}{space 2} 1.699552{col 37}{space 1}    0.92{col 46}{space 3}0.358{col 54}{space 4}-1.805547{col 67}{space 3} 4.944399
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2}-1.290036{col 26}{space 2}  1.00276{col 37}{space 1}   -1.29{col 46}{space 3}0.201{col 54}{space 4}-3.281318{col 67}{space 3} .7012459
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} 5.343358{col 26}{space 2} 3.369862{col 37}{space 1}    1.59{col 46}{space 3}0.116{col 54}{space 4}-1.348519{col 67}{space 3} 12.03524
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. * stacked test: does the income slope differ between the two indicators?
+. preserve
+{txt}
+{com}.     expand 2
+{txt}(102 observations created)
+
+{com}.     bysort iso3: gen byte new = _n == 2
+{txt}
+{com}.     gen y = cond(new, fh_total, cat10)
+{txt}
+{com}.     regress y i.new##c.lngdp i.new##i.reg, vce(cluster cid)
+
+{txt}Linear regression                               Number of obs     = {res}       204
+                                                {txt}F(13, 101)        =  {res}    32.77
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.5960
+                                                {txt}Root MSE          =    {res}  8.626
+
+{txt}{ralign 78:(Std. err. adjusted for {res:102} clusters in {res:cid})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}           y{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 7}1.new {c |}{col 14}{res}{space 2} 79.01986{col 26}{space 2}  15.4861{col 37}{space 1}    5.10{col 46}{space 3}0.000{col 54}{space 4} 48.29961{col 67}{space 3} 109.7401
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} .5620339{col 26}{space 2}  1.07953{col 37}{space 1}    0.52{col 46}{space 3}0.604{col 54}{space 4}-1.579464{col 67}{space 3} 2.703532
+{txt}{space 12} {c |}
+{space 1}new#c.lngdp {c |}
+{space 10}1  {c |}{col 14}{res}{space 2} -7.34266{col 26}{space 2} 1.598038{col 37}{space 1}   -4.59{col 46}{space 3}0.000{col 54}{space 4}-10.51274{col 67}{space 3}-4.172583
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2} 1.504302{col 26}{space 2}    3.049{col 37}{space 1}    0.49{col 46}{space 3}0.623{col 54}{space 4}-4.544095{col 67}{space 3} 7.552698
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2}-.4141021{col 26}{space 2} 2.735724{col 37}{space 1}   -0.15{col 46}{space 3}0.880{col 54}{space 4}-5.841043{col 67}{space 3} 5.012839
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} 4.214511{col 26}{space 2} 3.633007{col 37}{space 1}    1.16{col 46}{space 3}0.249{col 54}{space 4}-2.992397{col 67}{space 3} 11.42142
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} 2.934437{col 26}{space 2} 3.822147{col 37}{space 1}    0.77{col 46}{space 3}0.444{col 54}{space 4}-4.647674{col 67}{space 3} 10.51655
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2}-1.943982{col 26}{space 2} 2.641883{col 37}{space 1}   -0.74{col 46}{space 3}0.464{col 54}{space 4}-7.184766{col 67}{space 3} 3.296803
+{txt}{space 12} {c |}
+{space 5}new#reg {c |}
+{space 6}1#ECS  {c |}{col 14}{res}{space 2}-3.634429{col 26}{space 2} 3.718226{col 37}{space 1}   -0.98{col 46}{space 3}0.331{col 54}{space 4}-11.01039{col 67}{space 3} 3.741531
+{txt}{space 6}1#LCN  {c |}{col 14}{res}{space 2} 1.647266{col 26}{space 2} 3.789882{col 37}{space 1}    0.43{col 46}{space 3}0.665{col 54}{space 4} -5.87084{col 67}{space 3} 9.165372
+{txt}{space 6}1#MEA  {c |}{col 14}{res}{space 2}  -2.0445{col 26}{space 2} 4.075627{col 37}{space 1}   -0.50{col 46}{space 3}0.617{col 54}{space 4}-10.12945{col 67}{space 3} 6.040448
+{txt}{space 6}1#SAS  {c |}{col 14}{res}{space 2}-1.133364{col 26}{space 2} 4.116811{col 37}{space 1}   -0.28{col 46}{space 3}0.784{col 54}{space 4}-9.300009{col 67}{space 3} 7.033282
+{txt}{space 6}1#SSF  {c |}{col 14}{res}{space 2} 7.623935{col 26}{space 2} 4.148772{col 37}{space 1}    1.84{col 46}{space 3}0.069{col 54}{space 4}-.6061126{col 67}{space 3} 15.85398
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} 4.090167{col 26}{space 2}  9.72354{col 37}{space 1}    0.42{col 46}{space 3}0.675{col 54}{space 4}-15.19872{col 67}{space 3} 23.37905
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}.     put `V' "grad.diff_b" -_b[1.new#c.lngdp]
+{txt}
+{com}.     put `V' "grad.diff_p" 2*ttail(e(df_r), abs(_b[1.new#c.lngdp]/_se[1.new#c.lngdp]))
+{txt}
+{com}. restore
+{txt}
+{com}. 
+. * OOP slope of each indicator, same surveys, with controls
+. use `P', clear
+{txt}(Financial protection survey points, national totals)
+
+{com}. keep if !missing(oop, lngdp, uhc)
+{txt}(2 observations deleted)
+
+{com}. count
+  {res}102
+{txt}
+{com}. put `V' "oopslope.n" r(N)
+{txt}
+{com}. foreach v in cat10 fh_total fh_impov fh_large {c -(}
+{txt}  2{com}.     regress `v' oop lngdp uhc i.reg, vce(robust)
+{txt}  3{com}.     putb `V' "oopslope.`v'" oop
+{txt}  4{com}. {c )-}
+
+{txt}Linear regression                               Number of obs     = {res}       102
+                                                {txt}F(8, 93)          =  {res}     6.82
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.3061
+                                                {txt}Root MSE          =    {res} 6.2454
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat10{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .1730292{col 26}{space 2}  .027583{col 37}{space 1}    6.27{col 46}{space 3}0.000{col 54}{space 4} .1182547{col 67}{space 3} .2278037
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} 2.382275{col 26}{space 2} 1.809802{col 37}{space 1}    1.32{col 46}{space 3}0.191{col 54}{space 4}-1.211632{col 67}{space 3} 5.976182
+{txt}{space 9}uhc {c |}{col 14}{res}{space 2}-.0505241{col 26}{space 2} .1091693{col 37}{space 1}   -0.46{col 46}{space 3}0.645{col 54}{space 4}-.2673127{col 67}{space 3} .1662645
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2} -.779911{col 26}{space 2} 2.695442{col 37}{space 1}   -0.29{col 46}{space 3}0.773{col 54}{space 4}-6.132524{col 67}{space 3} 4.572702
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2}-.6579866{col 26}{space 2} 2.536971{col 37}{space 1}   -0.26{col 46}{space 3}0.796{col 54}{space 4}-5.695909{col 67}{space 3} 4.379936
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} 2.143995{col 26}{space 2}  3.10499{col 37}{space 1}    0.69{col 46}{space 3}0.492{col 54}{space 4}  -4.0219{col 67}{space 3}  8.30989
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} .8741311{col 26}{space 2} 2.831536{col 37}{space 1}    0.31{col 46}{space 3}0.758{col 54}{space 4}-4.748738{col 67}{space 3}    6.497
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2}-1.737479{col 26}{space 2} 1.796698{col 37}{space 1}   -0.97{col 46}{space 3}0.336{col 54}{space 4}-5.305365{col 67}{space 3} 1.830407
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}-15.22164{col 26}{space 2} 10.96673{col 37}{space 1}   -1.39{col 46}{space 3}0.168{col 54}{space 4} -36.9994{col 67}{space 3} 6.556119
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}       102
+                                                {txt}F(8, 93)          =  {res}    16.74
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.5316
+                                                {txt}Root MSE          =    {res} 8.9907
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}    fh_total{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .2507247{col 26}{space 2} .0566712{col 37}{space 1}    4.42{col 46}{space 3}0.000{col 54}{space 4} .1381869{col 67}{space 3} .3632626
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2}-6.896429{col 26}{space 2} 2.235013{col 37}{space 1}   -3.09{col 46}{space 3}0.003{col 54}{space 4}-11.33472{col 67}{space 3}-2.458136
+{txt}{space 9}uhc {c |}{col 14}{res}{space 2} .1640934{col 26}{space 2} .1346365{col 37}{space 1}    1.22{col 46}{space 3}0.226{col 54}{space 4} -.103268{col 67}{space 3} .4314549
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2}-5.932323{col 26}{space 2} 3.546281{col 37}{space 1}   -1.67{col 46}{space 3}0.098{col 54}{space 4}-12.97453{col 67}{space 3} 1.109887
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2}-.1257538{col 26}{space 2} 3.742167{col 37}{space 1}   -0.03{col 46}{space 3}0.973{col 54}{space 4}-7.556956{col 67}{space 3} 7.305449
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2}-1.649433{col 26}{space 2} 3.805689{col 37}{space 1}   -0.43{col 46}{space 3}0.666{col 54}{space 4}-9.206777{col 67}{space 3} 5.907911
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2}-.3570891{col 26}{space 2} 4.390131{col 37}{space 1}   -0.08{col 46}{space 3}0.935{col 54}{space 4}-9.075019{col 67}{space 3} 8.360841
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2} 7.376989{col 26}{space 2} 3.806037{col 37}{space 1}    1.94{col 46}{space 3}0.056{col 54}{space 4}-.1810469{col 67}{space 3} 14.93502
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} 65.42567{col 26}{space 2} 18.21037{col 37}{space 1}    3.59{col 46}{space 3}0.001{col 54}{space 4}  29.2635{col 67}{space 3} 101.5878
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}       100
+                                                {txt}F(8, 91)          =  {res}    16.66
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.5646
+                                                {txt}Root MSE          =    {res} 8.3658
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}    fh_impov{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .1653519{col 26}{space 2} .0549828{col 37}{space 1}    3.01{col 46}{space 3}0.003{col 54}{space 4} .0561354{col 67}{space 3} .2745684
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2}-7.185076{col 26}{space 2} 2.094961{col 37}{space 1}   -3.43{col 46}{space 3}0.001{col 54}{space 4}-11.34646{col 67}{space 3}-3.023693
+{txt}{space 9}uhc {c |}{col 14}{res}{space 2} .1500165{col 26}{space 2} .1247433{col 37}{space 1}    1.20{col 46}{space 3}0.232{col 54}{space 4}-.0977707{col 67}{space 3} .3978037
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2}-5.683535{col 26}{space 2} 3.336648{col 37}{space 1}   -1.70{col 46}{space 3}0.092{col 54}{space 4}-12.31138{col 67}{space 3} .9443062
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2} .7499285{col 26}{space 2} 3.460697{col 37}{space 1}    0.22{col 46}{space 3}0.829{col 54}{space 4} -6.12432{col 67}{space 3} 7.624177
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2}-2.218517{col 26}{space 2} 3.487776{col 37}{space 1}   -0.64{col 46}{space 3}0.526{col 54}{space 4}-9.146556{col 67}{space 3} 4.709522
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2}-1.046426{col 26}{space 2} 3.813676{col 37}{space 1}   -0.27{col 46}{space 3}0.784{col 54}{space 4}-8.621824{col 67}{space 3} 6.528973
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2} 8.374636{col 26}{space 2} 3.766582{col 37}{space 1}    2.22{col 46}{space 3}0.029{col 54}{space 4} .8927831{col 67}{space 3} 15.85649
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} 67.83992{col 26}{space 2} 17.85523{col 37}{space 1}    3.80{col 46}{space 3}0.000{col 54}{space 4}  32.3727{col 67}{space 3} 103.3071
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}       100
+                                                {txt}F(8, 91)          =  {res}     8.99
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.4354
+                                                {txt}Root MSE          =    {res} 2.2008
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}    fh_large{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .0852532{col 26}{space 2}  .012407{col 37}{space 1}    6.87{col 46}{space 3}0.000{col 54}{space 4} .0606082{col 67}{space 3} .1098983
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} .2831229{col 26}{space 2} .4678872{col 37}{space 1}    0.61{col 46}{space 3}0.547{col 54}{space 4}-.6462776{col 67}{space 3} 1.212523
+{txt}{space 9}uhc {c |}{col 14}{res}{space 2} .0122289{col 26}{space 2} .0295434{col 37}{space 1}    0.41{col 46}{space 3}0.680{col 54}{space 4}-.0464554{col 67}{space 3} .0709133
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2}-.2262168{col 26}{space 2} .9657229{col 37}{space 1}   -0.23{col 46}{space 3}0.815{col 54}{space 4}-2.144507{col 67}{space 3} 1.692073
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2}-.8514183{col 26}{space 2} .9513502{col 37}{space 1}   -0.89{col 46}{space 3}0.373{col 54}{space 4}-2.741159{col 67}{space 3} 1.038322
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} .6027031{col 26}{space 2} 1.178862{col 37}{space 1}    0.51{col 46}{space 3}0.610{col 54}{space 4}-1.738961{col 67}{space 3} 2.944368
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} .6856657{col 26}{space 2} 1.235411{col 37}{space 1}    0.56{col 46}{space 3}0.580{col 54}{space 4}-1.768327{col 67}{space 3} 3.139659
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2} -1.00576{col 26}{space 2} .6214722{col 37}{space 1}   -1.62{col 46}{space 3}0.109{col 54}{space 4}-2.240238{col 67}{space 3} .2287181
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}-2.247656{col 26}{space 2} 3.129696{col 37}{space 1}   -0.72{col 46}{space 3}0.474{col 54}{space 4}-8.464413{col 67}{space 3} 3.969101
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. expand 2
+{txt}(102 observations created)
+
+{com}. bysort iso3: gen byte new = _n == 2
+{txt}
+{com}. gen y = cond(new, fh_total, cat10)
+{txt}
+{com}. regress y i.new##c.oop i.new##c.lngdp i.new##c.uhc i.new##i.reg, vce(cluster cid)
+
+{txt}Linear regression                               Number of obs     = {res}       204
+                                                {txt}F(17, 101)        =  {res}    34.47
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.6815
+                                                {txt}Root MSE          =    {res} 7.7407
+
+{txt}{ralign 78:(Std. err. adjusted for {res:102} clusters in {res:cid})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}           y{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 7}1.new {c |}{col 14}{res}{space 2} 80.64731{col 26}{space 2} 16.96723{col 37}{space 1}    4.75{col 46}{space 3}0.000{col 54}{space 4}  46.9889{col 67}{space 3} 114.3057
+{txt}{space 9}oop {c |}{col 14}{res}{space 2} .1730292{col 26}{space 2} .0276512{col 37}{space 1}    6.26{col 46}{space 3}0.000{col 54}{space 4} .1181766{col 67}{space 3} .2278818
+{txt}{space 12} {c |}
+{space 3}new#c.oop {c |}
+{space 10}1  {c |}{col 14}{res}{space 2} .0776955{col 26}{space 2} .0524256{col 37}{space 1}    1.48{col 46}{space 3}0.141{col 54}{space 4}-.0263028{col 67}{space 3} .1816938
+{txt}{space 12} {c |}
+{space 7}lngdp {c |}{col 14}{res}{space 2} 2.382275{col 26}{space 2} 1.814276{col 37}{space 1}    1.31{col 46}{space 3}0.192{col 54}{space 4} -1.21676{col 67}{space 3}  5.98131
+{txt}{space 12} {c |}
+{space 1}new#c.lngdp {c |}
+{space 10}1  {c |}{col 14}{res}{space 2}-9.278704{col 26}{space 2} 2.074431{col 37}{space 1}   -4.47{col 46}{space 3}0.000{col 54}{space 4}-13.39382{col 67}{space 3}-5.163592
+{txt}{space 12} {c |}
+{space 9}uhc {c |}{col 14}{res}{space 2}-.0505241{col 26}{space 2} .1094392{col 37}{space 1}   -0.46{col 46}{space 3}0.645{col 54}{space 4} -.267622{col 67}{space 3} .1665738
+{txt}{space 12} {c |}
+{space 3}new#c.uhc {c |}
+{space 10}1  {c |}{col 14}{res}{space 2} .2146175{col 26}{space 2} .1181019{col 37}{space 1}    1.82{col 46}{space 3}0.072{col 54}{space 4}-.0196649{col 67}{space 3} .4488999
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2} -.779911{col 26}{space 2} 2.702105{col 37}{space 1}   -0.29{col 46}{space 3}0.773{col 54}{space 4}-6.140161{col 67}{space 3} 4.580339
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2}-.6579866{col 26}{space 2} 2.543243{col 37}{space 1}   -0.26{col 46}{space 3}0.796{col 54}{space 4}-5.703097{col 67}{space 3} 4.387124
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} 2.143995{col 26}{space 2} 3.112666{col 37}{space 1}    0.69{col 46}{space 3}0.493{col 54}{space 4}-4.030698{col 67}{space 3} 8.318688
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} .8741312{col 26}{space 2} 2.838536{col 37}{space 1}    0.31{col 46}{space 3}0.759{col 54}{space 4} -4.75676{col 67}{space 3} 6.505023
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2}-1.737479{col 26}{space 2}  1.80114{col 37}{space 1}   -0.96{col 46}{space 3}0.337{col 54}{space 4}-5.310456{col 67}{space 3} 1.835498
+{txt}{space 12} {c |}
+{space 5}new#reg {c |}
+{space 6}1#ECS  {c |}{col 14}{res}{space 2}-5.152412{col 26}{space 2} 3.444863{col 37}{space 1}   -1.50{col 46}{space 3}0.138{col 54}{space 4}-11.98609{col 67}{space 3} 1.681269
+{txt}{space 6}1#LCN  {c |}{col 14}{res}{space 2} .5322328{col 26}{space 2} 3.496367{col 37}{space 1}    0.15{col 46}{space 3}0.879{col 54}{space 4}-6.403619{col 67}{space 3} 7.468084
+{txt}{space 6}1#MEA  {c |}{col 14}{res}{space 2}-3.793428{col 26}{space 2} 3.739983{col 37}{space 1}   -1.01{col 46}{space 3}0.313{col 54}{space 4}-11.21255{col 67}{space 3} 3.625691
+{txt}{space 6}1#SAS  {c |}{col 14}{res}{space 2}-1.231221{col 26}{space 2}   3.6343{col 37}{space 1}   -0.34{col 46}{space 3}0.735{col 54}{space 4}-8.440694{col 67}{space 3} 5.978253
+{txt}{space 6}1#SSF  {c |}{col 14}{res}{space 2} 9.114468{col 26}{space 2} 3.879189{col 37}{space 1}    2.35{col 46}{space 3}0.021{col 54}{space 4} 1.419199{col 67}{space 3} 16.80974
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}-15.22164{col 26}{space 2} 10.99385{col 37}{space 1}   -1.38{col 46}{space 3}0.169{col 54}{space 4}-37.03047{col 67}{space 3} 6.587192
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. put `V' "oopslope.diff_b" _b[1.new#c.oop]
+{txt}
+{com}. put `V' "oopslope.diff_p" 2*ttail(e(df_r), abs(_b[1.new#c.oop]/_se[1.new#c.oop]))
+{txt}
+{com}. 
+. *------------------------------------------------------------------------------
+. * 4. WHO BEARS HARDSHIP: WHO breakdowns of the 2025 indicator
+. *------------------------------------------------------------------------------
+. import delimited using "$in/$hard", clear varnames(1) case(lower) stringcols(_all)
+{res}{txt}(encoding automatically selected: ISO-8859-1)
+{text}(25 vars, 16,241 obs)
+
+{com}. keep spatialdim timedim dim1 dim2 numericvalue
+{txt}
+{com}. destring timedim numericvalue, replace
+{txt}timedim: all characters numeric; {res}replaced {txt}as {res}int
+{txt}numericvalue: all characters numeric; {res}replaced {txt}as {res}double
+{txt}(3 missing values generated)
+{res}{txt}
+{com}. rename spatialdim iso3
+{res}{txt}
+{com}. rename timedim svy_year
+{res}{txt}
+{com}. merge m:1 iso3 using `L', keep(match) nogen keepusing(iso3)
+{res}
+{txt}{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}               0
+{txt}{col 5}Matched{col 30}{res}          11,440{txt}  
+{col 5}{hline 41}
+
+{com}. keep if svy_year >= 2005
+{txt}(2,372 observations deleted)
+
+{com}. gen g = ""
+{txt}(9,068 missing values generated)
+
+{com}. replace g = "q1"     if dim1 == "WEALTHQUINTILE_WQ1"
+{txt}variable {bf}{res}g{sf}{txt} was {bf}{res}str1{sf}{txt} now {bf}{res}str2{sf}
+{txt}(552 real changes made)
+
+{com}. replace g = "q5"     if dim1 == "WEALTHQUINTILE_WQ5"
+{txt}(552 real changes made)
+
+{com}. replace g = "old"    if dim1 == "HOUSEHOLD_COMP_BY_AGE_HH_COMP_ONLY_OLDER_ADULTS"
+{txt}variable {bf}{res}g{sf}{txt} was {bf}{res}str2{sf}{txt} now {bf}{res}str3{sf}
+{txt}(316 real changes made)
+
+{com}. replace g = "adults" if dim1 == "HOUSEHOLD_COMP_BY_AGE_HH_COMP_ADULTS"
+{txt}variable {bf}{res}g{sf}{txt} was {bf}{res}str3{sf}{txt} now {bf}{res}str6{sf}
+{txt}(332 real changes made)
+
+{com}. replace g = "rur"    if dim1 == "RESIDENCEAREATYPE_RUR"
+{txt}(446 real changes made)
+
+{com}. replace g = "urb"    if dim1 == "RESIDENCEAREATYPE_URB"
+{txt}(446 real changes made)
+
+{com}. replace g = "h60"    if dim1 == "DEMOGRAPHIC_HEADOFHOUSEHOLD" & dim2 == "AGEGROUP_AGE60+"
+{txt}(350 real changes made)
+
+{com}. replace g = "hlt60"  if dim1 == "DEMOGRAPHIC_HEADOFHOUSEHOLD" & dim2 == "AGEGROUP_AGELT60"
+{txt}(350 real changes made)
+
+{com}. keep if g != ""
+{txt}(5,724 observations deleted)
+
+{com}. collapse (mean) numericvalue, by(iso3 svy_year g)
+{res}{txt}
+{com}. reshape wide numericvalue, i(iso3 svy_year) j(g) string
+{txt}(j = adults h60 hlt60 old q1 q5 rur urb)
+
+Data{col 36}Long{col 43}->{col 48}Wide
+{hline 77}
+Number of observations     {res}       3,344   {txt}->   {res}552         
+{txt}Number of variables        {res}           4   {txt}->   {res}10          
+{txt}j variable (8 values)                 {res}g   {txt}->   (dropped)
+xij variables:
+                           {res}numericvalue   {txt}->   {res}numericvalueadults numericvalueh60 ... numericvalueurb
+{txt}{hline 77}
+
+{com}. rename numericvalue* *
+{res}{txt}
+{com}. foreach y in 2005 2010 2016 2022 {c -(}
+{txt}  2{com}.     foreach a in q1 q5 old adults rur urb h60 hlt60 {c -(}
+{txt}  3{com}.         summarize `a' if iso3 == "BGD" & svy_year == `y'
+{txt}  4{com}.         if r(N) put `V' "bgd_groups.`y'.`a'" r(mean)
+{txt}  5{com}.     {c )-}
+{txt}  6{com}. {c )-}
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 10}q1 {c |}{res}          1    49.37852           .   49.37852   49.37852
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 10}q5 {c |}{res}          1    10.10784           .   10.10784   10.10784
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}old {c |}{res}          1    22.97731           .   22.97731   22.97731
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 6}adults {c |}{res}          1    6.664234           .   6.664234   6.664234
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}rur {c |}{res}          1    31.88707           .   31.88707   31.88707
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}urb {c |}{res}          1    16.86937           .   16.86937   16.86937
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}h60 {c |}{res}          1    26.12442           .   26.12442   26.12442
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 7}hlt60 {c |}{res}          1    28.63315           .   28.63315   28.63315
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 10}q1 {c |}{res}          1       51.63           .      51.63      51.63
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 10}q5 {c |}{res}          1        9.71           .       9.71       9.71
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}old {c |}{res}          1       24.27           .      24.27      24.27
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 6}adults {c |}{res}          1       10.07           .      10.07      10.07
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}rur {c |}{res}          1       35.43           .      35.43      35.43
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}urb {c |}{res}          1       13.65           .      13.65      13.65
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}h60 {c |}{res}          1       28.57           .      28.57      28.57
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 7}hlt60 {c |}{res}          1       29.96           .      29.96      29.96
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 10}q1 {c |}{res}          1       62.12           .      62.12      62.12
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 10}q5 {c |}{res}          1       16.23           .      16.23      16.23
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}old {c |}{res}          1       40.25           .      40.25      40.25
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 6}adults {c |}{res}          1       17.38           .      17.38      17.38
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}rur {c |}{res}          1       40.96           .      40.96      40.96
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}urb {c |}{res}          1       21.89           .      21.89      21.89
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}h60 {c |}{res}          1       38.73           .      38.73      38.73
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 7}hlt60 {c |}{res}          1       35.17           .      35.17      35.17
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 10}q1 {c |}{res}          1       90.79           .      90.79      90.79
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 10}q5 {c |}{res}          1       13.63           .      13.63      13.63
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}old {c |}{res}          1       45.33           .      45.33      45.33
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 6}adults {c |}{res}          1       20.56           .      20.56      20.56
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}rur {c |}{res}          1       47.88           .      47.88      47.88
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}urb {c |}{res}          1       28.17           .      28.17      28.17
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}h60 {c |}{res}          1       45.76           .      45.76      45.76
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 7}hlt60 {c |}{res}          1       40.58           .      40.58      40.58
+{txt}
+{com}. gen gap_q   = q1 - q5
+{txt}
+{com}. gen gap_old = old - adults
+{txt}(255 missing values generated)
+
+{com}. gen gap_h60 = h60 - hlt60
+{txt}(202 missing values generated)
+
+{com}. gen gap_rur = rur - urb
+{txt}(106 missing values generated)
+
+{com}. foreach v in oop gdp_ppp {c -(}
+{txt}  2{com}.     nearest2 `v'
+{txt}  3{com}. {c )-}
+{txt}(LMIC panel 2000-2023, WDI + WHO GHO)
+(127 observations deleted)
+{res}{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_00000d.tmp{rm}
+saved
+as .dta format
+{p_end}
+(6 missing values generated)
+(12,314 observations deleted)
+(5 real changes made, 5 to missing)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(166 observations deleted)
+{res}{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_00000d.tmp{rm}
+saved
+as .dta format
+{p_end}
+(4 missing values generated)
+(12,529 observations deleted)
+(1 real change made, 1 to missing)
+
+{com}. gen lngdp = ln(gdp_ppp)
+{txt}(5 missing values generated)
+
+{com}. tempfile G
+{txt}
+{com}. save `G'
+{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_00000c.tmp{rm}
+saved
+as .dta format
+{p_end}
+
+{com}. foreach g in gap_q gap_old gap_h60 gap_rur {c -(}
+{txt}  2{com}.     use `G', clear
+{txt}  3{com}.     keep if !missing(`g')
+{txt}  4{com}.     bysort iso3 (svy_year): keep if _n == _N
+{txt}  5{com}.     count
+{txt}  6{com}.     put `V' "groups.`g'.n" r(N)
+{txt}  7{com}.     summarize `g', detail
+{txt}  8{com}.     put `V' "groups.`g'.median" r(p50)
+{txt}  9{com}.     count if `g' > 0
+{txt} 10{com}.     put `V' "groups.`g'.n_pos" r(N)
+{txt} 11{com}.     regress `g' oop lngdp, vce(robust)
+{txt} 12{com}.     putb `V' "groups.`g'.reg" oop
+{txt} 13{com}. {c )-}
+{txt}(0 observations deleted)
+(438 observations deleted)
+  {res}114
+
+                            {txt}gap_q
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}-9.561281      -28.91143
+{txt} 5%    {res} 8.196056      -9.561281
+{txt}10%    {res} 17.05016              0       {txt}Obs         {res}        114
+{txt}25%    {res} 38.93957       1.398962       {txt}Sum of wgt. {res}        114
+
+{txt}50%    {res} 57.56039                      {txt}Mean          {res} 55.17068
+                        {txt}Largest       Std. dev.     {res} 25.97198
+{txt}75%    {res}  74.5139        94.8917
+{txt}90%    {res} 86.50449          95.38       {txt}Variance      {res} 674.5437
+{txt}95%    {res} 91.29916       96.35874       {txt}Skewness      {res}-.6210837
+{txt}99%    {res} 96.35874        97.2281       {txt}Kurtosis      {res} 3.034234
+  111
+
+{txt}Linear regression                               Number of obs     = {res}       111
+                                                {txt}F(2, 108)         =  {res}    15.86
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.1990
+                                                {txt}Root MSE          =    {res} 23.727
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       gap_q{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .5784261{col 26}{space 2} .1060087{col 37}{space 1}    5.46{col 46}{space 3}0.000{col 54}{space 4} .3682985{col 67}{space 3} .7885537
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2}-.6667279{col 26}{space 2} 2.823518{col 37}{space 1}   -0.24{col 46}{space 3}0.814{col 54}{space 4}-6.263431{col 67}{space 3} 4.929975
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 40.24961{col 26}{space 2} 26.59337{col 37}{space 1}    1.51{col 46}{space 3}0.133{col 54}{space 4}-12.46306{col 67}{space 3} 92.96228
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}(255 observations deleted)
+(225 observations deleted)
+  {res}72
+
+                           {txt}gap_old
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}-1.880852      -1.880852
+{txt} 5%    {res} .4858255      -1.402679
+{txt}10%    {res} 2.118427      -.4901886       {txt}Obs         {res}         72
+{txt}25%    {res} 3.911015       .4858255       {txt}Sum of wgt. {res}         72
+
+{txt}50%    {res} 7.748941                      {txt}Mean          {res} 8.872641
+                        {txt}Largest       Std. dev.     {res} 6.245015
+{txt}75%    {res} 13.00029       19.13773
+{txt}90%    {res} 17.31585       20.36205       {txt}Variance      {res} 39.00021
+{txt}95%    {res} 19.13773          24.77       {txt}Skewness      {res} .6286161
+{txt}99%    {res} 27.81398       27.81398       {txt}Kurtosis      {res} 3.095088
+  69
+
+{txt}Linear regression                               Number of obs     = {res}        71
+                                                {txt}F(2, 68)          =  {res}     8.34
+                                                {txt}Prob > F          = {res}    0.0006
+                                                {txt}R-squared         = {res}    0.2249
+                                                {txt}Root MSE          =    {res} 5.6173
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     gap_old{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .1564548{col 26}{space 2}   .03972{col 37}{space 1}    3.94{col 46}{space 3}0.000{col 54}{space 4} .0771947{col 67}{space 3} .2357149
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2}-.9485263{col 26}{space 2} .7341348{col 37}{space 1}   -1.29{col 46}{space 3}0.201{col 54}{space 4}-2.413469{col 67}{space 3} .5164169
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 11.21595{col 26}{space 2} 6.661628{col 37}{space 1}    1.68{col 46}{space 3}0.097{col 54}{space 4}-2.077122{col 67}{space 3} 24.50902
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}(202 observations deleted)
+(251 observations deleted)
+  {res}99
+
+                           {txt}gap_h60
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}-7.317314      -7.317314
+{txt} 5%    {res}-4.547873      -5.640751
+{txt}10%    {res}-3.700909      -5.468445       {txt}Obs         {res}         99
+{txt}25%    {res}-.5727282          -5.34       {txt}Sum of wgt. {res}         99
+
+{txt}50%    {res} 2.225998                      {txt}Mean          {res} 2.936306
+                        {txt}Largest       Std. dev.     {res} 4.881267
+{txt}75%    {res} 6.771866        12.3933
+{txt}90%    {res} 10.09555       12.79571       {txt}Variance      {res} 23.82677
+{txt}95%    {res} 11.93432       12.86651       {txt}Skewness      {res} .1982849
+{txt}99%    {res} 13.21609       13.21609       {txt}Kurtosis      {res} 2.300004
+  71
+
+{txt}Linear regression                               Number of obs     = {res}        96
+                                                {txt}F(2, 93)          =  {res}     0.70
+                                                {txt}Prob > F          = {res}    0.4989
+                                                {txt}R-squared         = {res}    0.0151
+                                                {txt}Root MSE          =    {res} 4.9641
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     gap_h60{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2}  .005511{col 26}{space 2} .0272264{col 37}{space 1}    0.20{col 46}{space 3}0.840{col 54}{space 4}-.0485553{col 67}{space 3} .0595773
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} .7100746{col 26}{space 2} .6039951{col 37}{space 1}    1.18{col 46}{space 3}0.243{col 54}{space 4}-.4893401{col 67}{space 3} 1.909489
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-3.532559{col 26}{space 2} 5.548634{col 37}{space 1}   -0.64{col 46}{space 3}0.526{col 54}{space 4}-14.55105{col 67}{space 3} 7.485929
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}(106 observations deleted)
+(345 observations deleted)
+  {res}101
+
+                           {txt}gap_rur
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}-10.36985      -13.64626
+{txt} 5%    {res} -3.16109      -10.36985
+{txt}10%    {res}   .71031          -6.52       {txt}Obs         {res}        101
+{txt}25%    {res} 5.554214      -4.133224       {txt}Sum of wgt. {res}        101
+
+{txt}50%    {res} 16.45431                      {txt}Mean          {res} 15.49624
+                        {txt}Largest       Std. dev.     {res} 12.29971
+{txt}75%    {res} 24.69728       39.13783
+{txt}90%    {res} 29.67821       41.29663       {txt}Variance      {res} 151.2828
+{txt}95%    {res} 35.73056       43.49516       {txt}Skewness      {res} .0841378
+{txt}99%    {res} 43.49516       44.54386       {txt}Kurtosis      {res} 2.568968
+  91
+
+{txt}Linear regression                               Number of obs     = {res}        98
+                                                {txt}F(2, 95)          =  {res}     9.81
+                                                {txt}Prob > F          = {res}    0.0001
+                                                {txt}R-squared         = {res}    0.1275
+                                                {txt}Root MSE          =    {res} 11.594
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     gap_rur{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .1219258{col 26}{space 2} .0556228{col 37}{space 1}    2.19{col 46}{space 3}0.031{col 54}{space 4} .0115006{col 67}{space 3} .2323511
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} -4.14966{col 26}{space 2}  1.40981{col 37}{space 1}   -2.94{col 46}{space 3}0.004{col 54}{space 4}-6.948486{col 67}{space 3}-1.350834
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 47.96911{col 26}{space 2} 13.57083{col 37}{space 1}    3.53{col 46}{space 3}0.001{col 54}{space 4} 21.02761{col 67}{space 3} 74.91062
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. 
+. *------------------------------------------------------------------------------
+. * 5. WITHIN-COUNTRY: all survey rounds since 2000, country and year effects
+. *------------------------------------------------------------------------------
+. use "$in/fp_surveys.dta", clear
+{txt}(Financial protection survey points, national totals)
+
+{com}. keep if year >= 2000
+{txt}(61 observations deleted)
+
+{com}. merge m:1 iso3 using `L', keep(match) nogen
+{res}{txt}{p 0 7 2}
+(variable
+{bf:country} was {bf:str24}, now {bf:str30} to accommodate using data's values)
+{p_end}
+
+{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}               0
+{txt}{col 5}Matched{col 30}{res}             717{txt}  
+{col 5}{hline 41}
+
+{com}. rename year svy_year
+{res}{txt}
+{com}. foreach v in oop gdp_ppp {c -(}
+{txt}  2{com}.     nearest2 `v'
+{txt}  3{com}. {c )-}
+{txt}(LMIC panel 2000-2023, WDI + WHO GHO)
+(127 observations deleted)
+{res}{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_00000e.tmp{rm}
+saved
+as .dta format
+{p_end}
+(7 missing values generated)
+(16,080 observations deleted)
+(5 real changes made, 5 to missing)
+(LMIC panel 2000-2023, WDI + WHO GHO)
+(166 observations deleted)
+{res}{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_00000e.tmp{rm}
+saved
+as .dta format
+{p_end}
+(4 missing values generated)
+(16,302 observations deleted)
+(3 real changes made, 3 to missing)
+
+{com}. gen lngdp = ln(gdp_ppp)
+{txt}(7 missing values generated)
+
+{com}. egen cid = group(iso3)
+{txt}
+{com}. tempfile S0
+{txt}
+{com}. save `S0'
+{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_00000d.tmp{rm}
+saved
+as .dta format
+{p_end}
+
+{com}. foreach v in cat10 fh_total fh_large fh_impov {c -(}
+{txt}  2{com}.     use `S0', clear
+{txt}  3{com}.     keep if !missing(`v', oop, lngdp)
+{txt}  4{com}.     bysort iso3: keep if _N >= 2
+{txt}  5{com}.     reghdfe `v' oop lngdp, absorb(cid svy_year) vce(cluster cid)
+{txt}  6{com}.     putb `V' "fe.`v'" oop
+{txt}  7{com}.     put `V' "fe.`v'.countries" e(N_clust)
+{txt}  8{com}.     put `V' "fe.`v'.obs" e(N)
+{txt}  9{com}. {c )-}
+{txt}(Financial protection survey points, national totals)
+(144 observations deleted)
+(13 observations deleted)
+{res}{txt}({browse "http://scorreia.com/research/hdfe.pdf":MWFE estimator} converged in 9 iterations)
+{res}
+{txt}HDFE Linear regression{col 51}Number of obs{col 67}= {res}       560
+{txt}Absorbing 2 HDFE groups{col 51}F({res}   2{txt},{res}     96{txt}){col 67}= {res}      5.21
+{txt}Statistics robust to heteroskedasticity{col 51}Prob > F{col 67}= {res}    0.0071
+{txt}{col 51}R-squared{col 67}= {res}    0.8058
+{txt}{col 51}Adj R-squared{col 67}= {res}    0.7533
+{txt}{col 51}Within R-sq.{col 67}= {res}    0.0600
+{txt}{col 1}Number of clusters ({res}cid{txt}) {col 30}= {res}        97{txt}{col 51}Root MSE{col 67}= {res}    3.4062
+
+{txt}{ralign 78:(Std. err. adjusted for {res:97} clusters in {res:cid})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat10{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .0576597{col 26}{space 2} .0527997{col 37}{space 1}    1.09{col 46}{space 3}0.278{col 54}{space 4}-.0471469{col 67}{space 3} .1624664
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} 7.113639{col 26}{space 2} 3.930653{col 37}{space 1}    1.81{col 46}{space 3}0.073{col 54}{space 4}-.6886462{col 67}{space 3} 14.91592
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-57.61642{col 26}{space 2}  34.1517{col 37}{space 1}   -1.69{col 46}{space 3}0.095{col 54}{space 4} -125.407{col 67}{space 3} 10.17417
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Absorbed degrees of freedom:
+{res}{col 1}{text}{hline 13}{c TT}{hline 12}{hline 12}{hline 14}{hline 1}{c TRC}
+{col 1}{text} Absorbed FE{col 14}{c |} Categories{col 27} - Redundant{col 39}  = Num. Coefs{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c +}{hline 12}{hline 12}{hline 14}{hline 1}{c RT}
+{col 1}{text}         cid{col 14}{c |}{space 1}       97{col 27}{space 1}       97{col 39}{result}{space 1}        0{col 53}{text}*{col 54}{c |}
+{res}{col 1}{text}    svy_year{col 14}{c |}{space 1}       22{col 27}{space 1}        1{col 39}{result}{space 1}       21{col 53}{text} {col 54}{c |}
+{res}{col 1}{text}{hline 13}{c BT}{hline 12}{hline 12}{hline 14}{hline 1}{c BRC}
+* = FE nested within cluster; treated as redundant for DoF computation
+{res}{txt}(Financial protection survey points, national totals)
+(70 observations deleted)
+(15 observations deleted)
+{res}{txt}({browse "http://scorreia.com/research/hdfe.pdf":MWFE estimator} converged in 8 iterations)
+{res}
+{txt}HDFE Linear regression{col 51}Number of obs{col 67}= {res}       632
+{txt}Absorbing 2 HDFE groups{col 51}F({res}   2{txt},{res}     98{txt}){col 67}= {res}      0.34
+{txt}Statistics robust to heteroskedasticity{col 51}Prob > F{col 67}= {res}    0.7143
+{txt}{col 51}R-squared{col 67}= {res}    0.8499
+{txt}{col 51}Adj R-squared{col 67}= {res}    0.8131
+{txt}{col 51}Within R-sq.{col 67}= {res}    0.0050
+{txt}{col 1}Number of clusters ({res}cid{txt}) {col 30}= {res}        99{txt}{col 51}Root MSE{col 67}= {res}    5.6076
+
+{txt}{ralign 78:(Std. err. adjusted for {res:99} clusters in {res:cid})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}    fh_total{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .0422569{col 26}{space 2} .0773045{col 37}{space 1}    0.55{col 46}{space 3}0.586{col 54}{space 4}-.1111514{col 67}{space 3} .1956652
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} 2.461532{col 26}{space 2} 4.458555{col 37}{space 1}    0.55{col 46}{space 3}0.582{col 54}{space 4}-6.386326{col 67}{space 3} 11.30939
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 1.107169{col 26}{space 2} 39.83292{col 37}{space 1}    0.03{col 46}{space 3}0.978{col 54}{space 4}-77.93996{col 67}{space 3}  80.1543
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Absorbed degrees of freedom:
+{res}{col 1}{text}{hline 13}{c TT}{hline 12}{hline 12}{hline 14}{hline 1}{c TRC}
+{col 1}{text} Absorbed FE{col 14}{c |} Categories{col 27} - Redundant{col 39}  = Num. Coefs{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c +}{hline 12}{hline 12}{hline 14}{hline 1}{c RT}
+{col 1}{text}         cid{col 14}{c |}{space 1}       99{col 27}{space 1}       99{col 39}{result}{space 1}        0{col 53}{text}*{col 54}{c |}
+{res}{col 1}{text}    svy_year{col 14}{c |}{space 1}       25{col 27}{space 1}        1{col 39}{result}{space 1}       24{col 53}{text} {col 54}{c |}
+{res}{col 1}{text}{hline 13}{c BT}{hline 12}{hline 12}{hline 14}{hline 1}{c BRC}
+* = FE nested within cluster; treated as redundant for DoF computation
+{res}{txt}(Financial protection survey points, national totals)
+(78 observations deleted)
+(15 observations deleted)
+{res}{txt}({browse "http://scorreia.com/research/hdfe.pdf":MWFE estimator} converged in 8 iterations)
+{res}
+{txt}HDFE Linear regression{col 51}Number of obs{col 67}= {res}       624
+{txt}Absorbing 2 HDFE groups{col 51}F({res}   2{txt},{res}     96{txt}){col 67}= {res}      4.08
+{txt}Statistics robust to heteroskedasticity{col 51}Prob > F{col 67}= {res}    0.0199
+{txt}{col 51}R-squared{col 67}= {res}    0.8145
+{txt}{col 51}Adj R-squared{col 67}= {res}    0.7693
+{txt}{col 51}Within R-sq.{col 67}= {res}    0.0626
+{txt}{col 1}Number of clusters ({res}cid{txt}) {col 30}= {res}        97{txt}{col 51}Root MSE{col 67}= {res}    1.2755
+
+{txt}{ralign 78:(Std. err. adjusted for {res:97} clusters in {res:cid})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}    fh_large{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .0266187{col 26}{space 2} .0188269{col 37}{space 1}    1.41{col 46}{space 3}0.161{col 54}{space 4}-.0107523{col 67}{space 3} .0639898
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} 2.430737{col 26}{space 2} 1.261253{col 37}{space 1}    1.93{col 46}{space 3}0.057{col 54}{space 4}-.0728301{col 67}{space 3} 4.934304
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-19.13887{col 26}{space 2} 11.12732{col 37}{space 1}   -1.72{col 46}{space 3}0.089{col 54}{space 4}-41.22642{col 67}{space 3} 2.948686
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Absorbed degrees of freedom:
+{res}{col 1}{text}{hline 13}{c TT}{hline 12}{hline 12}{hline 14}{hline 1}{c TRC}
+{col 1}{text} Absorbed FE{col 14}{c |} Categories{col 27} - Redundant{col 39}  = Num. Coefs{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c +}{hline 12}{hline 12}{hline 14}{hline 1}{c RT}
+{col 1}{text}         cid{col 14}{c |}{space 1}       97{col 27}{space 1}       97{col 39}{result}{space 1}        0{col 53}{text}*{col 54}{c |}
+{res}{col 1}{text}    svy_year{col 14}{c |}{space 1}       25{col 27}{space 1}        1{col 39}{result}{space 1}       24{col 53}{text} {col 54}{c |}
+{res}{col 1}{text}{hline 13}{c BT}{hline 12}{hline 12}{hline 14}{hline 1}{c BRC}
+* = FE nested within cluster; treated as redundant for DoF computation
+{res}{txt}(Financial protection survey points, national totals)
+(78 observations deleted)
+(15 observations deleted)
+{res}{txt}({browse "http://scorreia.com/research/hdfe.pdf":MWFE estimator} converged in 8 iterations)
+{res}
+{txt}HDFE Linear regression{col 51}Number of obs{col 67}= {res}       624
+{txt}Absorbing 2 HDFE groups{col 51}F({res}   2{txt},{res}     96{txt}){col 67}= {res}      0.02
+{txt}Statistics robust to heteroskedasticity{col 51}Prob > F{col 67}= {res}    0.9818
+{txt}{col 51}R-squared{col 67}= {res}    0.8711
+{txt}{col 51}Adj R-squared{col 67}= {res}    0.8397
+{txt}{col 51}Within R-sq.{col 67}= {res}    0.0003
+{txt}{col 1}Number of clusters ({res}cid{txt}) {col 30}= {res}        97{txt}{col 51}Root MSE{col 67}= {res}    5.0283
+
+{txt}{ralign 78:(Std. err. adjusted for {res:97} clusters in {res:cid})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}    fh_impov{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .0116862{col 26}{space 2} .0632161{col 37}{space 1}    0.18{col 46}{space 3}0.854{col 54}{space 4}-.1137967{col 67}{space 3} .1371692
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2}-.2059755{col 26}{space 2} 3.564512{col 37}{space 1}   -0.06{col 46}{space 3}0.954{col 54}{space 4}-7.281476{col 67}{space 3} 6.869525
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 22.31203{col 26}{space 2} 32.07717{col 37}{space 1}    0.70{col 46}{space 3}0.488{col 54}{space 4}-41.36066{col 67}{space 3} 85.98471
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Absorbed degrees of freedom:
+{res}{col 1}{text}{hline 13}{c TT}{hline 12}{hline 12}{hline 14}{hline 1}{c TRC}
+{col 1}{text} Absorbed FE{col 14}{c |} Categories{col 27} - Redundant{col 39}  = Num. Coefs{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c +}{hline 12}{hline 12}{hline 14}{hline 1}{c RT}
+{col 1}{text}         cid{col 14}{c |}{space 1}       97{col 27}{space 1}       97{col 39}{result}{space 1}        0{col 53}{text}*{col 54}{c |}
+{res}{col 1}{text}    svy_year{col 14}{c |}{space 1}       25{col 27}{space 1}        1{col 39}{result}{space 1}       24{col 53}{text} {col 54}{c |}
+{res}{col 1}{text}{hline 13}{c BT}{hline 12}{hline 12}{hline 14}{hline 1}{c BRC}
+* = FE nested within cluster; treated as redundant for DoF computation
+{res}{txt}
+{com}. 
+. *------------------------------------------------------------------------------
+. * 6. THRESHOLD TESTS (Design A sample, n with complete controls)
+. *------------------------------------------------------------------------------
+. use `dA', clear
+{txt}(Financial protection survey points, national totals)
+
+{com}. count
+  {res}107
+{txt}
+{com}. put `V' "threshold.n" r(N)
+{txt}
+{com}. count if oop < 20
+  {res}18
+{txt}
+{com}. put `V' "threshold.n_below20" r(N)
+{txt}
+{com}. 
+. * sup-Wald over break points 10-70% (each side at least 8 countries).
+. * Computed in Mata: OLS with HC1 robust variance, identical to
+. * "regress cat10 oop h lngdp uhc i.reg, vce(robust)" for each break point,
+. * but fast enough for the bootstrap (499 x 61 regressions in seconds).
+. capture mata: mata drop supw()
+{txt}
+{com}. mata:
+{txt}{hline 49} mata (type {cmd:end} to exit) {hline}
+{com}: real rowvector supw(real colvector y, real matrix X0, real colvector oop, real scalar minn)
+> {c -(}
+>     real scalar best, at, c, k, n, w
+>     real colvector h, b, e
+>     real matrix X, XXi, V
+>     best = 0
+>     at = .
+>     n = rows(y)
+>     for (c = 10; c <= 70; c++) {c -(}
+>         h = (oop :- c) :* (oop :> c)
+>         if (sum(h :> 0) < minn | sum(h :== 0) < minn) continue
+>         X   = (X0, h)
+>         XXi = invsym(cross(X, X))
+>         b   = XXi * cross(X, y)
+>         e   = y - X * b
+>         k   = sum(diagonal(XXi) :!= 0)
+>         V   = XXi * cross(X, e:^2, X) * XXi * (n / (n - k))
+>         w   = b[cols(X)]^2 / V[cols(X), cols(X)]
+>         if (w > best) {c -(}
+>             best = w
+>             at = c
+>         {c )-}
+>     {c )-}
+>     return((best, at))
+> {c )-}
+
+: end
+{txt}{hline}
+
+{com}. quietly tab reg, gen(rd_)
+{txt}
+{com}. drop rd_1
+{txt}
+{com}. gen byte cons = 1
+{txt}
+{com}. mata: y = st_data(., "cat10"); X0 = st_data(., "oop lngdp uhc rd_* cons"); o = st_data(., "oop")
+{res}{txt}
+{com}. mata: r0 = supw(y, X0, o, 8); st_numscalar("W0", r0[1]); st_numscalar("at0", r0[2])
+{res}{txt}
+{com}. put `V' "threshold.supW" W0
+{txt}
+{com}. put `V' "threshold.at" at0
+{txt}
+{com}. * check: the same statistic from regress at the chosen break point
+. gen h = max(oop - at0, 0)
+{txt}
+{com}. regress cat10 oop h lngdp uhc i.reg, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}       107
+                                                {txt}F(9, 97)          =  {res}     9.04
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.3098
+                                                {txt}Root MSE          =    {res} 6.2821
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat10{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .1395804{col 26}{space 2} .0320371{col 37}{space 1}    4.36{col 46}{space 3}0.000{col 54}{space 4} .0759955{col 67}{space 3} .2031653
+{txt}{space 11}h {c |}{col 14}{res}{space 2} .4722461{col 26}{space 2} .2681617{col 37}{space 1}    1.76{col 46}{space 3}0.081{col 54}{space 4}-.0599806{col 67}{space 3} 1.004473
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} 2.341788{col 26}{space 2} 1.659473{col 37}{space 1}    1.41{col 46}{space 3}0.161{col 54}{space 4}-.9518059{col 67}{space 3} 5.635382
+{txt}{space 9}uhc {c |}{col 14}{res}{space 2}-.0514793{col 26}{space 2} .0981883{col 37}{space 1}   -0.52{col 46}{space 3}0.601{col 54}{space 4}-.2463559{col 67}{space 3} .1433974
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2} 1.124442{col 26}{space 2} 2.654629{col 37}{space 1}    0.42{col 46}{space 3}0.673{col 54}{space 4} -4.14426{col 67}{space 3} 6.393145
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2} 1.147791{col 26}{space 2} 2.485267{col 37}{space 1}    0.46{col 46}{space 3}0.645{col 54}{space 4}-3.784776{col 67}{space 3} 6.080358
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} 4.977918{col 26}{space 2}   3.1332{col 37}{space 1}    1.59{col 46}{space 3}0.115{col 54}{space 4}-1.240616{col 67}{space 3} 11.19645
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} 2.728629{col 26}{space 2} 2.804353{col 37}{space 1}    0.97{col 46}{space 3}0.333{col 54}{space 4}-2.837236{col 67}{space 3} 8.294494
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2} .0739694{col 26}{space 2} 1.776937{col 37}{space 1}    0.04{col 46}{space 3}0.967{col 54}{space 4}-3.452758{col 67}{space 3} 3.600697
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}-15.44796{col 26}{space 2} 10.41723{col 37}{space 1}   -1.48{col 46}{space 3}0.141{col 54}{space 4}-36.12327{col 67}{space 3} 5.227348
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. put `V' "threshold.check_regress" (_b[h]/_se[h])^2
+{txt}
+{com}. drop h
+{txt}
+{com}. * wild bootstrap under the linear null (Rademacher weights)
+. quietly regress cat10 oop lngdp uhc i.reg
+{txt}
+{com}. predict double fit, xb
+{txt}
+{com}. predict double res, residuals
+{txt}
+{com}. local reps = 499
+{txt}
+{com}. mata:
+{txt}{hline 49} mata (type {cmd:end} to exit) {hline}
+{com}: f  = st_data(., "fit")
+{res}
+{com}: u  = st_data(., "res")
+{res}
+{com}: w0 = st_numscalar("W0")
+{res}
+{com}: ex = 0
+{res}
+{com}: for (r = 1; r <= `reps'; r++) {c -(}
+>     ys = f + u :* (2 * (runiform(rows(u), 1) :< 0.5) :- 1)
+>     rr = supw(ys, X0, o, 8)
+>     if (rr[1] >= w0) ex++
+> {c )-}
+{res}
+{com}: st_numscalar("exceed", ex)
+{res}
+{com}: end
+{txt}{hline}
+
+{com}. put `V' "threshold.p_boot" exceed/`reps'
+{txt}
+{com}. put `V' "threshold.reps" `reps'
+{txt}
+{com}. foreach c in 10 15 20 {c -(}
+{txt}  2{com}.     capture drop h
+{txt}  3{com}.     gen h = max(oop - `c', 0)
+{txt}  4{com}.     regress cat10 oop h lngdp uhc i.reg, vce(robust)
+{txt}  5{com}.     putb `V' "threshold.h`c'" h
+{txt}  6{com}. {c )-}
+
+{txt}Linear regression                               Number of obs     = {res}       107
+                                                {txt}F(9, 97)          =  {res}    10.09
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.2993
+                                                {txt}Root MSE          =    {res} 6.3297
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat10{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .3381204{col 26}{space 2} .2653099{col 37}{space 1}    1.27{col 46}{space 3}0.206{col 54}{space 4}-.1884463{col 67}{space 3} .8646871
+{txt}{space 11}h {c |}{col 14}{res}{space 2}-.1830056{col 26}{space 2} .2849364{col 37}{space 1}   -0.64{col 46}{space 3}0.522{col 54}{space 4}-.7485255{col 67}{space 3} .3825143
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} 2.466886{col 26}{space 2} 1.670195{col 37}{space 1}    1.48{col 46}{space 3}0.143{col 54}{space 4} -.847989{col 67}{space 3} 5.781762
+{txt}{space 9}uhc {c |}{col 14}{res}{space 2}-.0616716{col 26}{space 2} .1023692{col 37}{space 1}   -0.60{col 46}{space 3}0.548{col 54}{space 4}-.2648461{col 67}{space 3} .1415029
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2}  .901323{col 26}{space 2} 2.676006{col 37}{space 1}    0.34{col 46}{space 3}0.737{col 54}{space 4}-4.409809{col 67}{space 3} 6.212455
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2} .6844656{col 26}{space 2} 2.523037{col 37}{space 1}    0.27{col 46}{space 3}0.787{col 54}{space 4}-4.323064{col 67}{space 3} 5.691996
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} 4.599767{col 26}{space 2} 3.160137{col 37}{space 1}    1.46{col 46}{space 3}0.149{col 54}{space 4}-1.672231{col 67}{space 3} 10.87176
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} 2.391836{col 26}{space 2}  2.93986{col 37}{space 1}    0.81{col 46}{space 3}0.418{col 54}{space 4}-3.442973{col 67}{space 3} 8.226645
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2}-.3660192{col 26}{space 2} 1.814329{col 37}{space 1}   -0.20{col 46}{space 3}0.841{col 54}{space 4}-3.966961{col 67}{space 3} 3.234922
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}-17.80178{col 26}{space 2}  11.2671{col 37}{space 1}   -1.58{col 46}{space 3}0.117{col 54}{space 4}-40.16386{col 67}{space 3} 4.560291
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}       107
+                                                {txt}F(9, 97)          =  {res}     7.67
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.2986
+                                                {txt}Root MSE          =    {res} 6.3331
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat10{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .1760957{col 26}{space 2} .1795721{col 37}{space 1}    0.98{col 46}{space 3}0.329{col 54}{space 4}-.1803052{col 67}{space 3} .5324965
+{txt}{space 11}h {c |}{col 14}{res}{space 2}-.0170482{col 26}{space 2}    .2009{col 37}{space 1}   -0.08{col 46}{space 3}0.933{col 54}{space 4} -.415779{col 67}{space 3} .3816827
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} 2.432037{col 26}{space 2} 1.648442{col 37}{space 1}    1.48{col 46}{space 3}0.143{col 54}{space 4}-.8396634{col 67}{space 3} 5.703737
+{txt}{space 9}uhc {c |}{col 14}{res}{space 2}-.0566492{col 26}{space 2} .0998635{col 37}{space 1}   -0.57{col 46}{space 3}0.572{col 54}{space 4}-.2548507{col 67}{space 3} .1415523
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2} .9914298{col 26}{space 2} 2.730986{col 37}{space 1}    0.36{col 46}{space 3}0.717{col 54}{space 4}-4.428822{col 67}{space 3} 6.411681
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2}  .804985{col 26}{space 2} 2.616178{col 37}{space 1}    0.31{col 46}{space 3}0.759{col 54}{space 4}-4.387403{col 67}{space 3} 5.997373
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2}  4.68521{col 26}{space 2} 3.189676{col 37}{space 1}    1.47{col 46}{space 3}0.145{col 54}{space 4}-1.645415{col 67}{space 3} 11.01583
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} 2.519593{col 26}{space 2} 2.944444{col 37}{space 1}    0.86{col 46}{space 3}0.394{col 54}{space 4}-3.324314{col 67}{space 3} 8.363499
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2}-.2138742{col 26}{space 2}  1.80658{col 37}{space 1}   -0.12{col 46}{space 3}0.906{col 54}{space 4}-3.799435{col 67}{space 3} 3.371687
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}-16.50674{col 26}{space 2} 11.04883{col 37}{space 1}   -1.49{col 46}{space 3}0.138{col 54}{space 4}-38.43561{col 67}{space 3}  5.42213
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}       107
+                                                {txt}F(9, 97)          =  {res}     7.15
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.2986
+                                                {txt}Root MSE          =    {res} 6.3331
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat10{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .1699253{col 26}{space 2} .1313361{col 37}{space 1}    1.29{col 46}{space 3}0.199{col 54}{space 4}-.0907405{col 67}{space 3} .4305912
+{txt}{space 11}h {c |}{col 14}{res}{space 2}-.0111292{col 26}{space 2} .1563829{col 37}{space 1}   -0.07{col 46}{space 3}0.943{col 54}{space 4} -.321506{col 67}{space 3} .2992476
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} 2.428192{col 26}{space 2} 1.629871{col 37}{space 1}    1.49{col 46}{space 3}0.140{col 54}{space 4}-.8066512{col 67}{space 3} 5.663036
+{txt}{space 9}uhc {c |}{col 14}{res}{space 2}-.0562928{col 26}{space 2} .0985124{col 37}{space 1}   -0.57{col 46}{space 3}0.569{col 54}{space 4}-.2518125{col 67}{space 3}  .139227
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2} .9922672{col 26}{space 2} 2.748324{col 37}{space 1}    0.36{col 46}{space 3}0.719{col 54}{space 4}-4.462395{col 67}{space 3}  6.44693
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2}  .803382{col 26}{space 2} 2.656175{col 37}{space 1}    0.30{col 46}{space 3}0.763{col 54}{space 4}-4.468391{col 67}{space 3} 6.075155
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} 4.684806{col 26}{space 2} 3.211948{col 37}{space 1}    1.46{col 46}{space 3}0.148{col 54}{space 4}-1.690023{col 67}{space 3} 11.05963
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} 2.529824{col 26}{space 2} 2.895336{col 37}{space 1}    0.87{col 46}{space 3}0.384{col 54}{space 4}-3.216616{col 67}{space 3} 8.276263
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2}-.2074934{col 26}{space 2}  1.78471{col 37}{space 1}   -0.12{col 46}{space 3}0.908{col 54}{space 4}-3.749649{col 67}{space 3} 3.334662
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}-16.44948{col 26}{space 2} 10.80899{col 37}{space 1}   -1.52{col 46}{space 3}0.131{col 54}{space 4}-37.90233{col 67}{space 3} 5.003369
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. capture drop h
+{txt}
+{com}. gen oop2 = oop^2
+{txt}
+{com}. regress cat10 oop oop2 lngdp uhc i.reg, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}       107
+                                                {txt}F(9, 97)          =  {res}     6.43
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.2993
+                                                {txt}Root MSE          =    {res}   6.33
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat10{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .1200556{col 26}{space 2}  .113882{col 37}{space 1}    1.05{col 46}{space 3}0.294{col 54}{space 4}-.1059687{col 67}{space 3}   .34608
+{txt}{space 8}oop2 {c |}{col 14}{res}{space 2} .0005097{col 26}{space 2} .0014247{col 37}{space 1}    0.36{col 46}{space 3}0.721{col 54}{space 4} -.002318{col 67}{space 3} .0033374
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} 2.449427{col 26}{space 2} 1.637909{col 37}{space 1}    1.50{col 46}{space 3}0.138{col 54}{space 4}-.8013684{col 67}{space 3} 5.700222
+{txt}{space 9}uhc {c |}{col 14}{res}{space 2}-.0564642{col 26}{space 2} .0989811{col 37}{space 1}   -0.57{col 46}{space 3}0.570{col 54}{space 4}-.2529142{col 67}{space 3} .1399858
+{txt}{space 12} {c |}
+{space 9}reg {c |}
+{space 8}ECS  {c |}{col 14}{res}{space 2} 1.096558{col 26}{space 2} 2.692253{col 37}{space 1}    0.41{col 46}{space 3}0.685{col 54}{space 4}-4.246819{col 67}{space 3} 6.439936
+{txt}{space 8}LCN  {c |}{col 14}{res}{space 2} .9917829{col 26}{space 2}  2.57094{col 37}{space 1}    0.39{col 46}{space 3}0.701{col 54}{space 4}-4.110821{col 67}{space 3} 6.094386
+{txt}{space 8}MEA  {c |}{col 14}{res}{space 2} 4.844515{col 26}{space 2} 3.234544{col 37}{space 1}    1.50{col 46}{space 3}0.137{col 54}{space 4} -1.57516{col 67}{space 3} 11.26419
+{txt}{space 8}SAS  {c |}{col 14}{res}{space 2} 2.555675{col 26}{space 2} 2.829701{col 37}{space 1}    0.90{col 46}{space 3}0.369{col 54}{space 4}-3.060498{col 67}{space 3} 8.171848
+{txt}{space 8}SSF  {c |}{col 14}{res}{space 2}-.1470642{col 26}{space 2} 1.752259{col 37}{space 1}   -0.08{col 46}{space 3}0.933{col 54}{space 4}-3.624814{col 67}{space 3} 3.330685
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}-15.95538{col 26}{space 2}  10.7959{col 37}{space 1}   -1.48{col 46}{space 3}0.143{col 54}{space 4}-37.38225{col 67}{space 3} 5.471498
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "threshold.quad" oop2
+{txt}
+{com}. put `V' "threshold.slope_change_20_70.0" 100*(_b[oop2] - invttail(e(df_r),0.025)*_se[oop2])
+{txt}
+{com}. put `V' "threshold.slope_change_20_70.1" 100*(_b[oop2] + invttail(e(df_r),0.025)*_se[oop2])
+{txt}
+{com}. regress cat10 c.oop##c.lngdp uhc i.reg, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}       107
+                                                {txt}F(9, 97)          =  {res}     6.75
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.3028
+                                                {txt}Root MSE          =    {res} 6.3139
+
+{txt}{hline 14}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 15}{c |}{col 27}    Robust
+{col 1}        cat10{col 15}{c |} Coefficient{col 27}  std. err.{col 39}      t{col 47}   P>|t|{col 55}     [95% con{col 68}f. interval]
+{hline 14}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 10}oop {c |}{col 15}{res}{space 2}-.1218123{col 27}{space 2}  .318318{col 38}{space 1}   -0.38{col 47}{space 3}0.703{col 55}{space 4}-.7535853{col 68}{space 3} .5099608
+{txt}{space 8}lngdp {c |}{col 15}{res}{space 2} 1.463085{col 27}{space 2}  1.58476{col 38}{space 1}    0.92{col 47}{space 3}0.358{col 55}{space 4}-1.682225{col 68}{space 3} 4.608395
+{txt}{space 13} {c |}
+c.oop#c.lngdp {c |}{col 15}{res}{space 2} .0324024{col 27}{space 2} .0368538{col 38}{space 1}    0.88{col 47}{space 3}0.381{col 55}{space 4}-.0407423{col 68}{space 3} .1055471
+{txt}{space 13} {c |}
+{space 10}uhc {c |}{col 15}{res}{space 2}-.0632402{col 27}{space 2}  .099364{col 38}{space 1}   -0.64{col 47}{space 3}0.526{col 55}{space 4}-.2604502{col 68}{space 3} .1339698
+{txt}{space 13} {c |}
+{space 10}reg {c |}
+{space 9}ECS  {c |}{col 15}{res}{space 2} .9380747{col 27}{space 2} 2.602201{col 38}{space 1}    0.36{col 47}{space 3}0.719{col 55}{space 4}-4.226574{col 68}{space 3} 6.102723
+{txt}{space 9}LCN  {c |}{col 15}{res}{space 2} .9329251{col 27}{space 2} 2.448332{col 38}{space 1}    0.38{col 47}{space 3}0.704{col 55}{space 4}-3.926337{col 68}{space 3} 5.792187
+{txt}{space 9}MEA  {c |}{col 15}{res}{space 2} 4.664266{col 27}{space 2} 3.119169{col 38}{space 1}    1.50{col 47}{space 3}0.138{col 55}{space 4}-1.526422{col 68}{space 3} 10.85495
+{txt}{space 9}SAS  {c |}{col 15}{res}{space 2} 2.715068{col 27}{space 2} 2.883811{col 38}{space 1}    0.94{col 47}{space 3}0.349{col 55}{space 4}-3.008499{col 68}{space 3} 8.438635
+{txt}{space 9}SSF  {c |}{col 15}{res}{space 2}-.0193445{col 27}{space 2}  1.81736{col 38}{space 1}   -0.01{col 47}{space 3}0.992{col 55}{space 4}  -3.6263{col 68}{space 3} 3.587611
+{txt}{space 13} {c |}
+{space 8}_cons {c |}{col 15}{res}{space 2}-7.568076{col 27}{space 2} 10.36906{col 38}{space 1}   -0.73{col 47}{space 3}0.467{col 55}{space 4}-28.14779{col 68}{space 3} 13.01164
+{txt}{hline 14}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. putb `V' "threshold.inter_lngdp" c.oop#c.lngdp
+{txt}
+{com}. * unadjusted slope by income group (all countries with OOP)
+. use `A', clear
+{txt}(Financial protection survey points, national totals)
+
+{com}. foreach g in LIC LMC UMC {c -(}
+{txt}  2{com}.     regress cat10 oop if income == "`g'", vce(robust)
+{txt}  3{com}.     putb `V' "threshold.slope_`g'" oop
+{txt}  4{com}. {c )-}
+
+{txt}Linear regression                               Number of obs     = {res}        23
+                                                {txt}F(1, 21)          =  {res}    10.92
+                                                {txt}Prob > F          = {res}    0.0034
+                                                {txt}R-squared         = {res}    0.3863
+                                                {txt}Root MSE          =    {res} 5.0689
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat10{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .1908878{col 26}{space 2} .0577672{col 37}{space 1}    3.30{col 46}{space 3}0.003{col 54}{space 4} .0707542{col 67}{space 3} .3110213
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.6647787{col 26}{space 2} 2.310063{col 37}{space 1}   -0.29{col 46}{space 3}0.776{col 54}{space 4}-5.468818{col 67}{space 3} 4.139261
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}        41
+                                                {txt}F(1, 39)          =  {res}    16.10
+                                                {txt}Prob > F          = {res}    0.0003
+                                                {txt}R-squared         = {res}    0.1721
+                                                {txt}Root MSE          =    {res} 7.8063
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat10{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .1656687{col 26}{space 2} .0412847{col 37}{space 1}    4.01{col 46}{space 3}0.000{col 54}{space 4} .0821626{col 67}{space 3} .2491748
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 3.599839{col 26}{space 2} 1.865583{col 37}{space 1}    1.93{col 46}{space 3}0.061{col 54}{space 4}-.1736602{col 67}{space 3} 7.373337
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}        45
+                                                {txt}F(1, 43)          =  {res}    10.19
+                                                {txt}Prob > F          = {res}    0.0026
+                                                {txt}R-squared         = {res}    0.1692
+                                                {txt}Root MSE          =    {res} 5.7759
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}       cat10{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} .1609426{col 26}{space 2} .0504271{col 37}{space 1}    3.19{col 46}{space 3}0.003{col 54}{space 4} .0592467{col 67}{space 3} .2626386
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 3.264494{col 26}{space 2} 1.607084{col 37}{space 1}    2.03{col 46}{space 3}0.048{col 54}{space 4} .0234994{col 67}{space 3} 6.505488
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. 
+. *------------------------------------------------------------------------------
+. * 7. DESIGN B: health per dollar, 2019
+. *------------------------------------------------------------------------------
+. use "$in/panel.dta", clear
+{txt}(LMIC panel 2000-2023, WDI + WHO GHO)
+
+{com}. keep if year == 2019
+{txt}(3,013 observations deleted)
+
+{com}. merge m:1 iso3 using `L', keep(match) nogen
+{res}
+{txt}{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}               0
+{txt}{col 5}Matched{col 30}{res}             131{txt}  
+{col 5}{hline 41}
+
+{com}. count if !missing(che_ppp)
+  {res}129
+{txt}
+{com}. put `V' "data.n_spend_2019" r(N)
+{txt}
+{com}. gen lnche = ln(che_ppp)
+{txt}(2 missing values generated)
+
+{com}. gen lngdp = ln(gdp_ppp)
+{txt}(6 missing values generated)
+
+{com}. gen lnu5  = ln(u5mr)
+{txt}
+{com}. regress lnu5 lnche, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}       129
+                                                {txt}F(1, 127)         =  {res}   192.55
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.6012
+                                                {txt}Root MSE          =    {res} .52899
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}        lnu5{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 7}lnche {c |}{col 14}{res}{space 2}-.6268843{col 26}{space 2} .0451771{col 37}{space 1}  -13.88{col 46}{space 3}0.000{col 54}{space 4}-.7162817{col 67}{space 3} -.537487
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 7.020051{col 26}{space 2} .2645988{col 37}{space 1}   26.53{col 46}{space 3}0.000{col 54}{space 4} 6.496458{col 67}{space 3} 7.543645
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. put `V' "B.u5_r2" e(r2)
+{txt}
+{com}. put `V' "B.u5_n" e(N)
+{txt}
+{com}. keep if !missing(le_who, lnche)
+{txt}(5 observations deleted)
+
+{com}. regress le_who lnche, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}       126
+                                                {txt}F(1, 124)         =  {res}   123.20
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.4818
+                                                {txt}Root MSE          =    {res}  4.693
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}      le_who{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 7}lnche {c |}{col 14}{res}{space 2} 4.358163{col 26}{space 2} .3926408{col 37}{space 1}   11.10{col 46}{space 3}0.000{col 54}{space 4} 3.581017{col 67}{space 3} 5.135309
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 44.04785{col 26}{space 2} 2.395751{col 37}{space 1}   18.39{col 46}{space 3}0.000{col 54}{space 4} 39.30599{col 67}{space 3} 48.78971
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. put `V' "B.n" e(N)
+{txt}
+{com}. put `V' "B.r2" e(r2)
+{txt}
+{com}. put `V' "B.per_doubling" _b[lnche]*ln(2)
+{txt}
+{com}. predict double res, residuals
+{txt}
+{com}. egen rk = rank(res), field
+{txt}
+{com}. summarize res if iso3 == "BGD"
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}res {c |}{res}          1    8.184813           .   8.184813   8.184813
+{txt}
+{com}. put `V' "B.bgd_res" r(mean)
+{txt}
+{com}. summarize rk if iso3 == "BGD"
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 10}rk {c |}{res}          1           2           .          2          2
+{txt}
+{com}. put `V' "B.bgd_rank" r(mean)
+{txt}
+{com}. summarize res if iso3 == "LKA"
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}res {c |}{res}          1     5.79709           .    5.79709    5.79709
+{txt}
+{com}. put `V' "B.lka_res" r(mean)
+{txt}
+{com}. regress le_who lnche lngdp, vce(robust)
+
+{txt}Linear regression                               Number of obs     = {res}       121
+                                                {txt}F(2, 118)         =  {res}    66.87
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.5452
+                                                {txt}Root MSE          =    {res} 4.4179
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}      le_who{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 7}lnche {c |}{col 14}{res}{space 2} 1.267447{col 26}{space 2} 1.224991{col 37}{space 1}    1.03{col 46}{space 3}0.303{col 54}{space 4}-1.158368{col 67}{space 3} 3.693262
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} 4.220002{col 26}{space 2} 1.581329{col 37}{space 1}    2.67{col 46}{space 3}0.009{col 54}{space 4} 1.088541{col 67}{space 3} 7.351464
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 24.39966{col 26}{space 2} 7.809024{col 37}{space 1}    3.12{col 46}{space 3}0.002{col 54}{space 4} 8.935669{col 67}{space 3} 39.86365
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. put `V' "B.n_gdp" e(N)
+{txt}
+{com}. put `V' "B.lnche_gdp" _b[lnche]
+{txt}
+{com}. put `V' "B.lnche_gdp_p" 2*ttail(e(df_r), abs(_b[lnche]/_se[lnche]))
+{txt}
+{com}. predict double res_g if e(sample), residuals
+{txt}(5 missing values generated)
+
+{com}. egen rk_g = rank(res_g), field
+{txt}(5 missing values generated)
+
+{com}. summarize res_g if iso3 == "BGD"
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 7}res_g {c |}{res}          1    5.580544           .   5.580544   5.580544
+{txt}
+{com}. put `V' "B.bgd_res_g" r(mean)
+{txt}
+{com}. summarize rk_g if iso3 == "BGD"
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 8}rk_g {c |}{res}          1           7           .          7          7
+{txt}
+{com}. put `V' "B.bgd_rank_g" r(mean)
+{txt}
+{com}. summarize le_who if iso3 == "BGD"
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 6}le_who {c |}{res}          1        73.4           .       73.4       73.4
+{txt}
+{com}. put `V' "B.bgd_le" r(mean)
+{txt}
+{com}. summarize che_ppp if iso3 == "BGD"
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 5}che_ppp {c |}{res}          1      128.63           .     128.63     128.63
+{txt}
+{com}. put `V' "B.bgd_che" r(mean)
+{txt}
+{com}. summarize oop if iso3 == "BGD"
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 9}oop {c |}{res}          1    76.47038           .   76.47038   76.47038
+{txt}
+{com}. put `V' "B.bgd_oop19" r(mean)
+{txt}
+{com}. egen rk_oop = rank(oop), field
+{txt}
+{com}. summarize rk_oop if iso3 == "BGD"
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 6}rk_oop {c |}{res}          1           5           .          5          5
+{txt}
+{com}. put `V' "B.bgd_oop_rank" r(mean)
+{txt}
+{com}. summarize oop, detail
+
+                             {txt}oop
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res} 2.694893       .6305582
+{txt} 5%    {res} 7.252383       2.694893
+{txt}10%    {res} 9.216986       3.588588       {txt}Obs         {res}        126
+{txt}25%    {res} 23.08802        4.49591       {txt}Sum of wgt. {res}        126
+
+{txt}50%    {res} 37.46577                      {txt}Mean          {res} 37.68424
+                        {txt}Largest       Std. dev.     {res} 20.37518
+{txt}75%    {res} 52.32635       76.56387
+{txt}90%    {res} 67.50371       76.63579       {txt}Variance      {res} 415.1479
+{txt}95%    {res} 73.77351       76.81837       {txt}Skewness      {res} .1865338
+{txt}99%    {res} 76.81837        84.7943       {txt}Kurtosis      {res} 2.266521
+{txt}
+{com}. put `V' "B.median_oop19" r(p50)
+{txt}
+{com}. keep iso3 res res_g
+{txt}
+{com}. tempfile Bres
+{txt}
+{com}. save `Bres'
+{txt}{p 0 4 2}
+file {bf}
+C:\Users\<user>\AppData\Local\Temp\ST_5d30_00000e.tmp{rm}
+saved
+as .dta format
+{p_end}
+
+{com}. * efficiency (residual) against hardship under each indicator
+. foreach v in cat10 fh_total {c -(}
+{txt}  2{com}.     use `S', clear
+{txt}  3{com}.     keep if !missing(`v')
+{txt}  4{com}.     bysort iso3 (svy_year): keep if _n == _N
+{txt}  5{com}.     merge 1:1 iso3 using `Bres', keep(match) nogen
+{txt}  6{com}.     count
+{txt}  7{com}.     put `V' "eff.`v'.n" r(N)
+{txt}  8{com}.     spearman res `v'
+{txt}  9{com}.     put `V' "eff.`v'.rho" r(rho)
+{txt} 10{com}.     spearman res_g `v'
+{txt} 11{com}.     put `V' "eff.`v'.rho_g" r(rho)
+{txt} 12{com}.     summarize `v', detail
+{txt} 13{com}.     local m = r(p50)
+{txt} 14{com}.     put `V' "eff.`v'.median" `m'
+{txt} 15{com}.     count if res > 3 & `v' < `m'
+{txt} 16{com}.     put `V' "eff.`v'.over_low" r(N)
+{txt} 17{com}.     count if res > 3 & `v' >= `m'
+{txt} 18{com}.     put `V' "eff.`v'.over_high" r(N)
+{txt} 19{com}. {c )-}
+{txt}(Financial protection survey points, national totals)
+(128 observations deleted)
+(364 observations deleted)
+{res}
+{txt}{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}               0
+{txt}{col 5}Matched{col 30}{res}             109{txt}  
+{col 5}{hline 41}
+  {res}109
+
+{txt} Number of obs = {res}    109
+{txt}Spearman's rho = {res}      0.1095
+
+{txt}Test of H0: res and cat10 are independent
+    Prob > |t| = {res}      0.2572
+
+{txt} Number of obs = {res}    107
+{txt}Spearman's rho = {res}      0.1550
+
+{txt}Test of H0: res_g and cat10 are independent
+    Prob > |t| = {res}      0.1109
+
+                            {txt}cat10
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}      .13              0
+{txt} 5%    {res}     1.03            .13
+{txt}10%    {res}     1.52             .2       {txt}Obs         {res}        109
+{txt}25%    {res}      4.3            .28       {txt}Sum of wgt. {res}        109
+
+{txt}50%    {res}     8.18                      {txt}Mean          {res} 9.139083
+                        {txt}Largest       Std. dev.     {res}  7.19996
+{txt}75%    {res}    11.81           26.6
+{txt}90%    {res}    17.86          31.14       {txt}Variance      {res} 51.83943
+{txt}95%    {res}    24.73          31.41       {txt}Skewness      {res} 1.395545
+{txt}99%    {res}    31.41          35.53       {txt}Kurtosis      {res} 5.033695
+  12
+  14
+{txt}(Financial protection survey points, national totals)
+(45 observations deleted)
+(441 observations deleted)
+{res}
+{txt}{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}               0
+{txt}{col 5}Matched{col 30}{res}             112{txt}  
+{col 5}{hline 41}
+  {res}112
+
+{txt} Number of obs = {res}    112
+{txt}Spearman's rho = {res}     -0.1773
+
+{txt}Test of H0: res and fh_total are independent
+    Prob > |t| = {res}      0.0615
+
+{txt} Number of obs = {res}    110
+{txt}Spearman's rho = {res}     -0.0900
+
+{txt}Test of H0: res_g and fh_total are independent
+    Prob > |t| = {res}      0.3497
+
+                          {txt}fh_total
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res} 3.406863        2.08883
+{txt} 5%    {res} 7.032452       3.406863
+{txt}10%    {res} 9.769879       4.809303       {txt}Obs         {res}        112
+{txt}25%    {res} 13.22559       6.517855       {txt}Sum of wgt. {res}        112
+
+{txt}50%    {res} 23.82577                      {txt}Mean          {res} 24.19881
+                        {txt}Largest       Std. dev.     {res} 12.33546
+{txt}75%    {res} 33.59554       47.89394
+{txt}90%    {res} 38.84091        52.9657       {txt}Variance      {res} 152.1637
+{txt}95%    {res} 43.28897       56.63509       {txt}Skewness      {res} .4252311
+{txt}99%    {res} 56.63509       60.03372       {txt}Kurtosis      {res} 2.637971
+  15
+  11
+{txt}
+{com}. 
+. *------------------------------------------------------------------------------
+. * 8. DESIGN C: annual panel 2000-2019, country and year effects
+. *------------------------------------------------------------------------------
+. use "$in/panel.dta", clear
+{txt}(LMIC panel 2000-2023, WDI + WHO GHO)
+
+{com}. keep if inrange(year, 2000, 2019)
+{txt}(524 observations deleted)
+
+{com}. merge m:1 iso3 using `L', keep(match) nogen
+{res}
+{txt}{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}               0
+{txt}{col 5}Matched{col 30}{res}           2,620{txt}  
+{col 5}{hline 41}
+
+{com}. egen cid = group(iso3)
+{txt}
+{com}. gen lnu5    = ln(u5mr)
+{txt}
+{com}. gen lngdp   = ln(gdp_ppp)
+{txt}(141 missing values generated)
+
+{com}. gen lnche_k = ln(che_gdp/100 * gdp_ppp)
+{txt}(195 missing values generated)
+
+{com}. reghdfe lnu5 lnche_k, absorb(cid year) vce(cluster cid)
+{res}{txt}({browse "http://scorreia.com/research/hdfe.pdf":MWFE estimator} converged in 4 iterations)
+{res}
+{txt}HDFE Linear regression{col 51}Number of obs{col 67}= {res}     2,425
+{txt}Absorbing 2 HDFE groups{col 51}F({res}   1{txt},{res}    123{txt}){col 67}= {res}     11.24
+{txt}Statistics robust to heteroskedasticity{col 51}Prob > F{col 67}= {res}    0.0011
+{txt}{col 51}R-squared{col 67}= {res}    0.9742
+{txt}{col 51}Adj R-squared{col 67}= {res}    0.9725
+{txt}{col 51}Within R-sq.{col 67}= {res}    0.0612
+{txt}{col 1}Number of clusters ({res}cid{txt}) {col 30}= {res}       124{txt}{col 51}Root MSE{col 67}= {res}    0.1374
+
+{txt}{ralign 78:(Std. err. adjusted for {res:124} clusters in {res:cid})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}        lnu5{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 5}lnche_k {c |}{col 14}{res}{space 2}-.1643442{col 26}{space 2} .0490261{col 37}{space 1}   -3.35{col 46}{space 3}0.001{col 54}{space 4}-.2613883{col 67}{space 3}-.0673001
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 4.593132{col 26}{space 2} .2822702{col 37}{space 1}   16.27{col 46}{space 3}0.000{col 54}{space 4} 4.034396{col 67}{space 3} 5.151869
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Absorbed degrees of freedom:
+{res}{col 1}{text}{hline 13}{c TT}{hline 12}{hline 12}{hline 14}{hline 1}{c TRC}
+{col 1}{text} Absorbed FE{col 14}{c |} Categories{col 27} - Redundant{col 39}  = Num. Coefs{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c +}{hline 12}{hline 12}{hline 14}{hline 1}{c RT}
+{col 1}{text}         cid{col 14}{c |}{space 1}      124{col 27}{space 1}      124{col 39}{result}{space 1}        0{col 53}{text}*{col 54}{c |}
+{res}{col 1}{text}        year{col 14}{c |}{space 1}       20{col 27}{space 1}        1{col 39}{result}{space 1}       19{col 53}{text} {col 54}{c |}
+{res}{col 1}{text}{hline 13}{c BT}{hline 12}{hline 12}{hline 14}{hline 1}{c BRC}
+* = FE nested within cluster; treated as redundant for DoF computation
+{res}{txt}
+{com}. putb `V' "C.u5_noinc" lnche_k
+{txt}
+{com}. put `V' "C.u5_noinc.countries" e(N_clust)
+{txt}
+{com}. reghdfe lnu5 lnche_k lngdp, absorb(cid year) vce(cluster cid)
+{res}{txt}({browse "http://scorreia.com/research/hdfe.pdf":MWFE estimator} converged in 4 iterations)
+{res}
+{txt}HDFE Linear regression{col 51}Number of obs{col 67}= {res}     2,425
+{txt}Absorbing 2 HDFE groups{col 51}F({res}   2{txt},{res}    123{txt}){col 67}= {res}     11.54
+{txt}Statistics robust to heteroskedasticity{col 51}Prob > F{col 67}= {res}    0.0000
+{txt}{col 51}R-squared{col 67}= {res}    0.9767
+{txt}{col 51}Adj R-squared{col 67}= {res}    0.9752
+{txt}{col 51}Within R-sq.{col 67}= {res}    0.1531
+{txt}{col 1}Number of clusters ({res}cid{txt}) {col 30}= {res}       124{txt}{col 51}Root MSE{col 67}= {res}    0.1305
+
+{txt}{ralign 78:(Std. err. adjusted for {res:124} clusters in {res:cid})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}        lnu5{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 5}lnche_k {c |}{col 14}{res}{space 2} -.032144{col 26}{space 2} .0428577{col 37}{space 1}   -0.75{col 46}{space 3}0.455{col 54}{space 4}-.1169782{col 67}{space 3} .0526902
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} -.383682{col 26}{space 2} .0885899{col 37}{space 1}   -4.33{col 46}{space 3}0.000{col 54}{space 4}-.5590402{col 67}{space 3}-.2083237
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}  7.18995{col 26}{space 2} .7431651{col 37}{space 1}    9.67{col 46}{space 3}0.000{col 54}{space 4} 5.718901{col 67}{space 3}    8.661
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Absorbed degrees of freedom:
+{res}{col 1}{text}{hline 13}{c TT}{hline 12}{hline 12}{hline 14}{hline 1}{c TRC}
+{col 1}{text} Absorbed FE{col 14}{c |} Categories{col 27} - Redundant{col 39}  = Num. Coefs{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c +}{hline 12}{hline 12}{hline 14}{hline 1}{c RT}
+{col 1}{text}         cid{col 14}{c |}{space 1}      124{col 27}{space 1}      124{col 39}{result}{space 1}        0{col 53}{text}*{col 54}{c |}
+{res}{col 1}{text}        year{col 14}{c |}{space 1}       20{col 27}{space 1}        1{col 39}{result}{space 1}       19{col 53}{text} {col 54}{c |}
+{res}{col 1}{text}{hline 13}{c BT}{hline 12}{hline 12}{hline 14}{hline 1}{c BRC}
+* = FE nested within cluster; treated as redundant for DoF computation
+{res}{txt}
+{com}. putb `V' "C.u5_inc" lnche_k
+{txt}
+{com}. put `V' "C.u5_inc.countries" e(N_clust)
+{txt}
+{com}. reghdfe uhc oop, absorb(cid year) vce(cluster cid)
+{res}{txt}({browse "http://scorreia.com/research/hdfe.pdf":MWFE estimator} converged in 5 iterations)
+{res}
+{txt}HDFE Linear regression{col 51}Number of obs{col 67}= {res}     2,503
+{txt}Absorbing 2 HDFE groups{col 51}F({res}   1{txt},{res}    128{txt}){col 67}= {res}     10.55
+{txt}Statistics robust to heteroskedasticity{col 51}Prob > F{col 67}= {res}    0.0015
+{txt}{col 51}R-squared{col 67}= {res}    0.9681
+{txt}{col 51}Adj R-squared{col 67}= {res}    0.9661
+{txt}{col 51}Within R-sq.{col 67}= {res}    0.0267
+{txt}{col 1}Number of clusters ({res}cid{txt}) {col 30}= {res}       129{txt}{col 51}Root MSE{col 67}= {res}    3.2591
+
+{txt}{ralign 78:(Std. err. adjusted for {res:129} clusters in {res:cid})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}         uhc{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2}-.0820562{col 26}{space 2} .0252649{col 37}{space 1}   -3.25{col 46}{space 3}0.001{col 54}{space 4}-.1320472{col 67}{space 3}-.0320652
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 57.30091{col 26}{space 2} 1.010932{col 37}{space 1}   56.68{col 46}{space 3}0.000{col 54}{space 4} 55.30061{col 67}{space 3} 59.30121
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Absorbed degrees of freedom:
+{res}{col 1}{text}{hline 13}{c TT}{hline 12}{hline 12}{hline 14}{hline 1}{c TRC}
+{col 1}{text} Absorbed FE{col 14}{c |} Categories{col 27} - Redundant{col 39}  = Num. Coefs{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c +}{hline 12}{hline 12}{hline 14}{hline 1}{c RT}
+{col 1}{text}         cid{col 14}{c |}{space 1}      129{col 27}{space 1}      129{col 39}{result}{space 1}        0{col 53}{text}*{col 54}{c |}
+{res}{col 1}{text}        year{col 14}{c |}{space 1}       20{col 27}{space 1}        1{col 39}{result}{space 1}       19{col 53}{text} {col 54}{c |}
+{res}{col 1}{text}{hline 13}{c BT}{hline 12}{hline 12}{hline 14}{hline 1}{c BRC}
+* = FE nested within cluster; treated as redundant for DoF computation
+{res}{txt}
+{com}. putb `V' "C.uhc_noinc" oop
+{txt}
+{com}. put `V' "C.uhc_noinc.countries" e(N_clust)
+{txt}
+{com}. reghdfe uhc oop lngdp, absorb(cid year) vce(cluster cid)
+{res}{txt}({browse "http://scorreia.com/research/hdfe.pdf":MWFE estimator} converged in 4 iterations)
+{res}
+{txt}HDFE Linear regression{col 51}Number of obs{col 67}= {res}     2,425
+{txt}Absorbing 2 HDFE groups{col 51}F({res}   2{txt},{res}    123{txt}){col 67}= {res}      4.87
+{txt}Statistics robust to heteroskedasticity{col 51}Prob > F{col 67}= {res}    0.0092
+{txt}{col 51}R-squared{col 67}= {res}    0.9675
+{txt}{col 51}Adj R-squared{col 67}= {res}    0.9654
+{txt}{col 51}Within R-sq.{col 67}= {res}    0.0313
+{txt}{col 1}Number of clusters ({res}cid{txt}) {col 30}= {res}       124{txt}{col 51}Root MSE{col 67}= {res}    3.2776
+
+{txt}{ralign 78:(Std. err. adjusted for {res:124} clusters in {res:cid})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}         uhc{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 9}oop {c |}{col 14}{res}{space 2} -.078799{col 26}{space 2} .0267704{col 37}{space 1}   -2.94{col 46}{space 3}0.004{col 54}{space 4}-.1317893{col 67}{space 3}-.0258086
+{txt}{space 7}lngdp {c |}{col 14}{res}{space 2} 2.517322{col 26}{space 2} 1.728015{col 37}{space 1}    1.46{col 46}{space 3}0.148{col 54}{space 4}-.9031773{col 67}{space 3} 5.937821
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} 35.27048{col 26}{space 2} 15.00308{col 37}{space 1}    2.35{col 46}{space 3}0.020{col 54}{space 4} 5.572796{col 67}{space 3} 64.96817
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Absorbed degrees of freedom:
+{res}{col 1}{text}{hline 13}{c TT}{hline 12}{hline 12}{hline 14}{hline 1}{c TRC}
+{col 1}{text} Absorbed FE{col 14}{c |} Categories{col 27} - Redundant{col 39}  = Num. Coefs{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c +}{hline 12}{hline 12}{hline 14}{hline 1}{c RT}
+{col 1}{text}         cid{col 14}{c |}{space 1}      124{col 27}{space 1}      124{col 39}{result}{space 1}        0{col 53}{text}*{col 54}{c |}
+{res}{col 1}{text}        year{col 14}{c |}{space 1}       20{col 27}{space 1}        1{col 39}{result}{space 1}       19{col 53}{text} {col 54}{c |}
+{res}{col 1}{text}{hline 13}{c BT}{hline 12}{hline 12}{hline 14}{hline 1}{c BRC}
+* = FE nested within cluster; treated as redundant for DoF computation
+{res}{txt}
+{com}. putb `V' "C.uhc_inc" oop
+{txt}
+{com}. put `V' "C.uhc_inc.countries" e(N_clust)
+{txt}
+{com}. 
+. *------------------------------------------------------------------------------
+. * 9. EXPORT
+. *------------------------------------------------------------------------------
+. postclose `V'
+{txt}
+{com}. use "$out/results_v3.dta", clear
+{txt}
+{com}. format value %20.10g
+{txt}
+{com}. export delimited using "$out/results_v3.csv", replace datafmt
+{res}{txt}{p 0 4 2}
+(file {bf}
+C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_v3.csv{rm}
+not found)
+{p_end}
+{txt}file {bf:C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/results_v3.csv} saved
+
+{com}. list in 1/20, clean noobs
+{txt}
+    {res}                     key   value {txt} 
+    {res}             data.n_lmic     131 {txt} 
+    {res}    data.n_by_income.LIC      25 {txt} 
+    {res}    data.n_by_income.LMC      47 {txt} 
+    {res}    data.n_by_income.UMC      59 {txt} 
+    {res}          levels.cat10.n     109 {txt} 
+    {res}     levels.cat10.median    8.18 {txt} 
+    {res}levels.cat10.median_year    2017 {txt} 
+    {res}        levels.cat10.bgd   24.42 {txt} 
+    {res}   levels.cat10.bgd_year    2016 {txt} 
+    {res}   levels.cat10.bgd_rank       7 {txt} 
+    {res}           bgd2016.cat10   24.42 {txt} 
+    {res} bgd2016_rank.cat10.rank       7 {txt} 
+    {res}    bgd2016_rank.cat10.n     109 {txt} 
+    {res}          levels.cat25.n     109 {txt} 
+    {res}     levels.cat25.median    1.38 {txt} 
+    {res}levels.cat25.median_year    2017 {txt} 
+    {res}        levels.cat25.bgd    8.45 {txt} 
+    {res}   levels.cat25.bgd_year    2016 {txt} 
+    {res}   levels.cat25.bgd_rank       4 {txt} 
+    {res}           bgd2016.cat25    8.45 {txt} 
+
+{com}. log close
+      {txt}name:  {res}<unnamed>
+       {txt}log:  {res}C:\Stata\fresh_test_v6\20.11.26_Financial_Protection_v6/output/revision_log.smcl
+  {txt}log type:  {res}smcl
+ {txt}closed on:  {res}20 Nov 2026, 19:02:16
+{txt}{.-}
+{smcl}
+{txt}{sf}{ul off}

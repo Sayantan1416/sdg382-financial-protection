@@ -1,0 +1,8 @@
+Download date: 2026-11-12
+check | got | expected (audit, 12 Nov 2026)
+LMIC count (FY2027) | 131 | 131 | OK
+BGD OOP % CHE 2019 | 76.47 | 76.47 | OK
+BGD CHE pc PPP 2019 | 128.63 | 128.63 | OK
+BGD WHO LE 2019 | 73.4 | 73.4 | OK
+BGD catastrophic >10% 2016 | 24.42 | 24.42 | OK
+BGD financial hardship 2022 | 41.7 | 41.7 | OK
